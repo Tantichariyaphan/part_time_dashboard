@@ -11,7 +11,7 @@ Source of Truth: Requirement 2026-10-02 draft 5 (REQ). Nothing here is client ac
 * **UNCONFIRMED / Q-xx** — the contract is silent, ambiguous, or contradictory for part of the criterion.
 * **FAIL** — none remain open. Defects found during this review were fixed (section 6) and re-tested.
 
-Evidence commands: `npm test` (122 tests: `tests/acceptance.test.js`, `edge.test.js`, `security.test.js`, `auth.test.js` (26, added 2026-10-05), plus earlier suites) and
+Evidence commands: `npm test` (135 tests: `tests/acceptance.test.js`, `edge.test.js`, `security.test.js`, `auth.test.js` (26, added 2026-10-05), `vercel.test.js` (6), `sample-shape.test.js` (7, added 2026-10-06), plus earlier suites) and
 `PLAYWRIGHT_MODULE=… node scripts/ui-review.mjs <outDir>` (headless Chromium, in-process synthetic servers).
 
 ## 1. TV1–TV25
@@ -56,7 +56,7 @@ Screenshots were viewed for ① demo, ② live and demo, ③, ④, ⑤, ⑥ (two
 
 ## 3. Business logic
 
-See `tests/edge.test.js`, `acceptance.test.js`, `production.test.js`, `runs.test.js`, `freshness.test.js`, `answers.test.js`, `time.test.js`. All pass (122 tests in the full suite). Cases whose truth needs the real Source are listed as BLOCKED in section 1, not here.
+See `tests/edge.test.js`, `acceptance.test.js`, `production.test.js`, `runs.test.js`, `freshness.test.js`, `answers.test.js`, `time.test.js`. All pass (135 tests in the full suite). Cases whose truth needs the real Source are listed as BLOCKED in section 1, not here.
 
 ## 4. Security
 

@@ -13,3 +13,20 @@ export function countText(c) {
     default: return S.notPulled;
   }
 }
+
+/** Message body as displayed: photo / sticker / other kinds have no text in Screen Data (REQ §5-3), so a label is shown. */
+export function messageBody(m) {
+  if (m.kind === 'photo') return S.photo;
+  if (m.kind === 'sticker') return S.sticker;
+  if (m.kind === 'other') return S.otherKind;
+  return m.text;
+}
+
+/** Hash links between pages (navigation only). */
+export const href = {
+  today: (store) => `#/today?store=${encodeURIComponent(store)}`,
+  messages: (store, date, focus) => `#/messages?store=${encodeURIComponent(store)}${date ? `&date=${encodeURIComponent(date)}` : ''}${focus ? `&focus=${encodeURIComponent(focus)}` : ''}`,
+  questions: (store, focus) => `#/questions?store=${encodeURIComponent(store)}${focus ? `&focus=${encodeURIComponent(focus)}` : ''}`,
+  machines: () => '#/machines',
+  failures: () => '#/failures',
+};

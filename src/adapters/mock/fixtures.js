@@ -4,6 +4,14 @@
 //
 // Everything here is invented: store ids, staff names, hosts, texts. No real identifiers (userId, recipient ID,
 // image URL) exist in this module and none may be added (REQ §5-1).
+//
+// SHAPES (not content) follow the client's Source sample of 2026-10-05 (docs/sample data_20261005, 09/28-10/04):
+//   - patrol questions go to MEAT and IN only (AI質問追跡.group; 心拍 has 送信MEAT / 送信IN), one send per group
+//   - question_id carries the patrol slot (AI質問追跡: <yyyyMMddHHmm>-<group>-<hash>); here <prefix>-q-<slot>-<group>-<n>
+//   - the daily report goes to the ALL group and to the owner (送信ログ.宛先 = ALL / OWNER); owner also gets alerts
+//   - most LINE rows are images, mainly in PHOTO; 種別 also has video/file (-> kind `other`, Q-12)
+//   - display names may contain emoji / Burmese script
+// Nothing from the sample (names, texts, ids, figures) is copied here.
 import { COLUMNS } from '../../contract/columns.js';
 import { addDays, businessDayOf, formatIso, zonedInstant } from '../../domain/time.js';
 import { effectiveTimes } from '../../domain/schedules.js';
@@ -17,7 +25,10 @@ const tab = (key, rows) => ({ columns: [...COLUMNS[key]], rows });
 const RUN_PATTERN = ['silent_ok', 'silent_ok', 'ok', 'silent_ok', 'silent_ok', 'late', 'silent_ok', 'ok', 'silent_ok',
   'silent_ok', 'silent_ok', 'blocked', 'silent_ok', 'missing', 'silent_ok', 'unknown'];
 const GROUPS = ['MEAT', 'PHOTO', 'IN', 'ALL', 'MANAGEMENT'];
-const STAFF = ['Staff A', 'Staff B', 'Staff C', 'Staff D'];
+const STAFF = ['Staff A', '🌤️Staff B✨', 'Staff C', 'Staff D'];
+const QUESTION_GROUPS = ['MEAT', 'IN']; // sample: patrol questions only to these two groups
+const PHOTO_OFFSETS = ['10:10', '12:40', '14:55', '18:02', '21:30']; // image bursts in PHOTO (sample: images dominate)
+const slotKey = (isoText) => isoText.slice(0, 16).replace(/[-T:]/g, ''); // 2026-10-02T12:00 -> 202610021200
 const QUESTION_TEXTS = [
   'Harami วันนี้ CUT กี่กิโลครับ?',
   'Tongue STOCK เหลือกี่กิโลครับ?',
@@ -115,22 +126,19 @@ export function buildMockTabs(now, { variant = 'dev', scenario = 'full', days = 
       }
     }
 
-    // ---------- questions + sends for ok/late patrols ----------
+    // ---------- questions + sends for ok/late patrols (one send per group, like 送信ログ) ----------
     for (const { row, at, kind, status } of dayRunRows) {
       if (kind !== 'slot' || !row.questions_sent || status === 'running') continue;
       const sentMs = at + 65 * MIN;
-      sn += 1;
-      const sendId = `${P}-s-${sn}`;
-      const qTexts = [];
+      const byGroup = new Map(); // group -> { qs: [], texts: [] }
       for (let k = 0; k < row.questions_sent; k++) {
         qn += 1;
         const who = STAFF[qn % 3];
-        const group = GROUPS[qn % 3];
+        const group = QUESTION_GROUPS[qn % QUESTION_GROUPS.length];
         const qtext = QUESTION_TEXTS[qn % QUESTION_TEXTS.length];
-        qTexts.push(`@${who} ${qtext}`);
         const mode = qn % 7; // 0 waiting, 1 candidate, 2 answered, 3 waiting, 4 closed/no_reply, 5 acked, 6 closed/answered
         const q = {
-          store: 'STORE_A', question_id: `${P}-q-${qn}`, run_id: row.run_id, send_id: sendId, sent_at: iso(sentMs), group, who,
+          store: 'STORE_A', question_id: `${P}-q-${slotKey(row.scheduled_at)}-${group}-${qn}`, run_id: row.run_id, send_id: '', sent_at: iso(sentMs), group, who,
           question_text: qtext, state: 'waiting', closed_reason: '', closed_at: '', answers_json: '[]', updated_at: iso(Math.min(now, sentMs + 30 * MIN)),
         };
         const ans = (link, offMin, text = ANSWER_TEXTS[qn % ANSWER_TEXTS.length]) => {
@@ -151,15 +159,34 @@ export function buildMockTabs(now, { variant = 'dev', scenario = 'full', days = 
           if (a1 && a2) { q.state = 'closed'; q.closed_reason = 'answered'; q.closed_at = iso(sentMs + 20 * MIN); q.answers_json = JSON.stringify([a1, a2]); } // unordered on purpose: screen must sort
         } else if (mode === 4 && sentMs < now - 26 * 3600000) { q.state = 'closed'; q.closed_reason = 'no_reply'; q.closed_at = iso(sentMs + 26 * 3600000); }
         questions.push(q);
+        if (!byGroup.has(group)) byGroup.set(group, { qs: [], texts: [] });
+        byGroup.get(group).qs.push(q);
+        byGroup.get(group).texts.push(`@${who} ${qtext}`);
       }
-      sends.push({ store: 'STORE_A', send_id: sendId, sent_at: iso(sentMs), kind: 'question', target_kind: 'group', target_label: GROUPS[qn % 3],
-        text: qTexts.join('\n'), result: sn % 13 === 0 ? 'unknown' : 'sent' });
+      let g = 0;
+      for (const [group, { qs, texts }] of byGroup) {
+        sn += 1;
+        const sendId = `${P}-s-${sn}`;
+        for (const q of qs) q.send_id = sendId;
+        sends.push({ store: 'STORE_A', send_id: sendId, sent_at: iso(sentMs + g * 60000), kind: 'question', target_kind: 'group', target_label: group,
+          text: texts.join('\n'), result: sn % 13 === 0 ? 'unknown' : 'sent' });
+        g += 1;
+      }
+    }
+    // the owner is told when a patrol could not be confirmed / stopped (sample: 送信ログ.宛先 = OWNER, alert texts)
+    for (const { row, at, kind, status } of dayRunRows) {
+      if (kind !== 'slot' || !['unknown', 'blocked'].includes(status) || at + 70 * MIN > now) continue;
+      sn += 1;
+      sends.push({ store: 'STORE_A', send_id: `${P}-s-${sn}`, sent_at: iso(at + 70 * MIN), kind: 'alert', target_kind: 'owner', target_label: 'OWNER',
+        text: `【แจ้งเตือน】รอบ ${iso(at).slice(11, 16)} ${status === 'blocked' ? 'หยุดก่อนส่ง' : 'ยืนยันผลการส่งไม่ได้'} (mock)`, result: 'sent' });
+      row.owner_notified = 'yes';
     }
     for (const { row, at, kind } of dayRunRows) {
-      if (kind === 'daily' && row.sent_at) {
-        sn += 1;
-        sends.push({ store: 'STORE_A', send_id: `${P}-s-${sn}`, sent_at: row.sent_at, kind: 'daily', target_kind: 'owner',
-          target_label: 'เจ้าของกิจการ (อีเมล)', text: '【รายวัน】…', result: 'sent' });
+      if (kind === 'daily' && row.sent_at) { // sample: the daily report goes to ALL and to OWNER at the same minute
+        for (const [targetKind, label, text] of [['group', 'ALL', '【รายวัน】ยอดขายเมื่อวาน (mock)'], ['owner', 'OWNER', '【รายวัน・เจ้าของ】สรุปเมื่อวาน (mock)']]) {
+          sn += 1;
+          sends.push({ store: 'STORE_A', send_id: `${P}-s-${sn}`, sent_at: row.sent_at, kind: 'daily', target_kind: targetKind, target_label: label, text, result: 'sent' });
+        }
       }
     }
 
@@ -194,6 +221,25 @@ export function buildMockTabs(now, { variant = 'dev', scenario = 'full', days = 
       messages.push(m);
     });
   }
+  // ---------- PHOTO image bursts and other kinds (sample: images are the bulk of ログ; video/file exist) ----------
+  for (const day of dayList) {
+    PHOTO_OFFSETS.forEach((hhmm, i) => {
+      for (let k = 0; k < 2; k++) {
+        const at = zonedInstant(day, hhmm, A.timezone) + k * 25000;
+        if (at > now) return;
+        mn += 1;
+        messages.push({ store: 'STORE_A', message_id: `${P}-m-${mn}`, at: iso(at), group: 'PHOTO', sender: STAFF[(i + k) % 4], kind: 'photo', text: '',
+          handling: 'not_needed', replies_json: '[]', question_id: '', question_link: '', run_id: '', updated_at: iso(now) });
+      }
+    });
+    const otherAt = zonedInstant(day, '16:40', A.timezone);
+    if (otherAt <= now) {
+      mn += 1;
+      messages.push({ store: 'STORE_A', message_id: `${P}-m-${mn}`, at: iso(otherAt), group: 'ALL', sender: STAFF[3], kind: 'other', text: '',
+        handling: 'not_needed', replies_json: '[]', question_id: '', question_link: '', run_id: '', updated_at: iso(now) });
+    }
+  }
+
   // message -> run link: the first patrol that ran after the message (registry key link; blank when none)
   const slotRuns = runs.filter((r) => r.kind === 'slot' && r.status !== 'missing').map((r) => ({ id: r.run_id, at: Date.parse(r.scheduled_at) }));
   for (const m of messages) {

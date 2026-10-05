@@ -94,3 +94,39 @@ Proposed questions (not yet in the Q register):
 * **Q-46 (proposed)** — Must the demo entry (11/12 presentation) require sign-in, as in the prototype, or be shown without an account?
 
 Not verified: real Google sign-in, real accounts on phones, the client's environment → TV3 and TV15 remain not passed.
+
+## 6. Prototype aligned with the Source sample of 2026-10-05 (2026-10-06)
+
+Input: `docs/sample data_20261005/` (client extract of the Bangkok Source, 2026-09-28 – 10-04: `ログ` 1,211 rows, `送信ログ` 53,
+`AI質問追跡` 12, `心拍` 98, plus `_抜き出しの記録.json`). The sample is **evidence for open questions, not a contract**: nothing below is
+CONFIRMED until the client approves the connection spec. The files contain real staff names and business text, so they are
+git-ignored and **no sample content was copied** into fixtures, the demo snapshot or tests — only shapes.
+
+### 6.1 What the sample shows (structure only)
+
+| Finding | Bears on |
+|---|---|
+| The extract already differs from the raw header: `ログ` has `群` (resolved group) instead of `グループID`, `発言者キー（userIdの代わり）` instead of `userId`, no `画像URL`; `送信ログ` has `宛先キー（宛先IDの代わり）` and names column 6 `返した元の発言 HH:MM\|発言者`. 16 other-group and 12 other-recipient rows were dropped at extraction | Q-10 (surrogate keys, resolved group), Q-13 |
+| `送信ログ.宛先` values: `MEAT`, `IN`, `ALL`, `PHOTO`, `OWNER` | Q-13, Q-14 |
+| `種別` values: `text`, `image`, `sticker`, `video`, `file`; `内容` = `[image]` / `[sticker]` / `[video]` / `[file]` for non-text. Images are 82 % of rows (mostly `PHOTO`) | Q-12 (`video`/`file` → `other`) |
+| `再送` rows (6) carry their **own** `messageId` (no `messageId` repeats in 1,211 rows), so merging "same `messageId`" does not merge resends | Q-17, Q-11 |
+| `取消` rows: 29 (2.4 %). Screen Data still has no cancel representation | Q-17 (prototype unchanged: no cancel display) |
+| `結果`: `OK` (44) and `OK 200` (9); no `NG(` / `ATTEMPTING_NO_RETRY` this week | §6.3 mapping (both → `sent`) |
+| Column 6 filled in 15 / 53 rows, all from 10/02; replies 1–5 min after the message, plus batches hours later | §8, Q-19 |
+| `AI質問追跡`: all `waiting`; groups `MEAT` / `IN` only; `slot` = `yyyy-MM-dd HH:mm`; `question_id` = `<yyyyMMddHHmm of slot>-<group>-<8 hex>`; `送信時刻` ≈ slot + 73 min | Q-21 (question → run via `slot`), Phase-1 states |
+| `心拍`: one row per hour at :13 (`gap分` 60), not one per scheduled patrol; `送信MEAT` / `送信IN` ∈ {`無言`, `送`, `-`}; `結果` = tokens joined by ` / ` (`AI=…`, `未分析=M…/I…`, `MEAT=…`, `IN=…`, `規則影…`, `STOP=…`, `owner=…`) plus free-text errors | **Q-15** — interpretation table still needed; the prototype does not interpret `結果` |
+| Timestamps `yyyy/MM/dd H:mm:ss`, no zone | Q-12 |
+| Daily report sent at 00:41 to `ALL` and `OWNER`; owner also receives alert-type texts | Q-14 (`kind`) |
+
+### 6.2 What changed in the prototype
+
+| ID | Change | Basis |
+|----|--------|-------|
+| N-28 | Mock fixtures: questions only to MEAT / IN with one send per group; `question_id` carries the slot (`<prefix>-q-<yyyyMMddHHmm>-<group>-<n>`); daily report to ALL and OWNER; owner alert sends after `unknown` / `blocked` patrols; PHOTO image bursts and `other` kind rows; emoji in display names. Demo snapshot regenerated from the same generator (still a draft pending client approval) | sample shapes (§6.1) |
+| N-29 | Cross-page references in view models, by registry keys only: message → run (`run_id`) and → question (`question_id`, link strength unchanged); question → run (`run_id`) and → send (`send_id`, LINE-accepted result); answer → its business day on ③; run detail → run record + its question sends; ⑤ rows → ② / ③; unknown keys are reported as "not found", never guessed | REQ §6 drill-downs, data-mapping §7–§8 |
+| N-30 | Detail views (open / close only): ③ message details (message_id, kind, handling, run_id, reply send_ids); ② run detail adds `posted_at`, `received_at`, `updated_at`, `evidence` **as stored** (provenance UNCONFIRMED, Q-15); ⑤ row details; ⑥ beats of the last 60 min per machine and `generated_at` age per tab (no new threshold) | REQ §6; extra detail wording Q-24 |
+| N-31 | `other` kind shown as "(その他の種別：動画・ファイル等)" | data-mapping §5.6 (`other`), Q-12 |
+| N-32 | `docs/sample data_*/` added to `.gitignore` | Claude.md §7 (real names/text), §11 |
+
+Not changed: Source → Read Copy integration (none), business rules, statuses, candidate handling (candidates are never shown or counted
+as confirmed), forbidden-field handling, read-only API, auth.

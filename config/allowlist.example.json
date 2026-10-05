@@ -1,0 +1,6 @@
+{
+  "viewers": [
+    { "email": "management@example.com", "name": "Management / Executive (placeholder)", "active": true },
+    { "email": "representative@example.com", "name": "Representative (placeholder)", "active": true }
+  ]
+}

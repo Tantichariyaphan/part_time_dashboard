@@ -10,11 +10,15 @@ export function Card({ title, sub, aside, href, class: cls } = {}, ...children) 
 }
 
 /** Single figure. `value` must already be the correct text (0 and "not pulled" are different strings). */
-export function MetricCard(label, value, sub, { text = false } = {}) {
-  return h('div', { class: 'metric' },
-    h('div', { class: 'k' }, label),
-    h('div', { class: `v${text ? ' text' : ''}` }, value),
-    sub && h('div', { class: 's' }, sub));
+export function MetricCard(label, value, sub, { text = false, href = null } = {}) {
+  const parts = [h('div', { class: 'k' }, label), h('div', { class: `v${text ? ' text' : ''}` }, value), sub && h('div', { class: 's' }, sub)];
+  return href ? h('a', { class: 'metric metric--link', href }, parts) : h('div', { class: 'metric' }, parts);
+}
+
+/** A row of navigation links (open / back only - REQ §6). links: [label, href][] ; falsy entries skipped. */
+export function Links(links) {
+  const items = links.filter(Boolean);
+  return items.length ? h('div', { class: 'links' }, items.map(([label, href]) => h('a', { href }, label))) : null;
 }
 
 export const Metrics = (...cards) => h('div', { class: 'metrics' }, cards);

@@ -3,7 +3,8 @@ import { h } from '../lib/dom.js';
 import { S } from '../strings.ja.js';
 import { api } from '../lib/api.js';
 import { hhmm, mdhm } from '../lib/format.js';
-import { qTone } from '../status.js';
+import { qTone, runLabel, runTone, sendTone } from '../status.js';
+import { href } from '../lib/present.js';
 import { Card, AlertCard } from '../components/cards.js';
 import { EvidenceBadge, StatusBadge } from '../components/badges.js';
 import { Chips } from '../components/controls.js';
@@ -15,14 +16,31 @@ export const load = ({ store }) => api('questions', { store });
 
 const filter = { key: 'all' };
 
-function Answer(a) {
+function Answer(a, store) {
   const cand = a.link !== 'confirmed'; // candidate (or unrecognised) is never presented as confirmed
   return h('div', { class: `ans${cand ? ' cand' : ''}` },
-    h('div', { class: 'ameta' }, `${hhmm(a.at)}　${a.who ?? ''}`, cand && ` ／ ${S.answerCandidate}`),
+    h('div', { class: 'ameta' }, `${hhmm(a.at)}　${a.who ?? ''}`, cand && ` ／ ${S.answerCandidate}`,
+      a.message_id && a.businessDay && h('a', { class: 'small', href: href.messages(store, a.businessDay, a.message_id) }, `　${S.link.toMessage}`)),
     h('div', null, a.text));
 }
 
-function Question(q) {
+/** Where the question came from (run_id) and whether LINE accepted its send (send_id). Registry keys only. */
+function Provenance(q, store) {
+  const run = q.run;
+  const send = q.send;
+  return h('div', { class: 'prov small' },
+    run && (run.found
+      ? h('span', { class: 'runchip' }, run.onTodayPage ? h('a', { href: href.today(store) }, S.link.run(hhmm(run.scheduledAt))) : S.link.run(mdhm(run.scheduledAt)),
+        StatusBadge(runTone(run.status), runLabel(run.status), { compact: true }))
+      : h('span', { class: 'muted' }, S.link.runNotFound)),
+    send && (send.found
+      ? h('span', { class: 'runchip' }, `${S.detail.sendOfQuestion} ${hhmm(send.sent_at) ?? ''} → ${send.target_label ?? ''}`,
+        StatusBadge(sendTone(send.result), S.sendResult[send.result] ?? S.unknown, { compact: true }))
+      : h('span', { class: 'muted' }, S.detail.sendNotFound)),
+    h('span', { class: 'muted' }, q.question_id));
+}
+
+function Question(q, store) {
   return h('section', { class: 'card', id: `q-${q.question_id}` },
     h('div', { class: 'card-head' },
       h('div', null, h('h3', null, `${mdhm(q.sent_at)}　${q.group} → ${q.who}`),
@@ -31,8 +49,9 @@ function Question(q) {
       StatusBadge(qTone(q.state), S.qstate[q.state] ?? S.unknown, { wrap: true })),
     h('div', { class: 'q' }, q.text),
     q.answersOk
-      ? (q.answers.length ? q.answers.map(Answer) : h('div', { class: 'small muted' }, `${S.noAnswers}`))
-      : h('div', { class: 'small' }, StatusBadge('tone-unknown', S.answersUnreadable, { compact: true })));
+      ? (q.answers.length ? q.answers.map((a) => Answer(a, store)) : h('div', { class: 'small muted' }, `${S.noAnswers}`))
+      : h('div', { class: 'small' }, StatusBadge('tone-unknown', S.answersUnreadable, { compact: true })),
+    Provenance(q, store));
 }
 
 export function view(env, ctx) {
@@ -46,5 +65,5 @@ export function view(env, ctx) {
     Chips([['all', `${S.questions.filters.all} ${c.all}`], ['waiting', `${S.questions.filters.waiting} ${c.waiting}`],
       ['answered', `${S.questions.filters.answered} ${c.answered}`], ['closed', `${S.questions.filters.closed} ${c.closed}`]],
     filter.key, (k) => { filter.key = k; ctx.rerender(); }),
-    items.length ? items.map(Question) : EmptyState(S.zero));
+    items.length ? items.map((q) => Question(q, d.store)) : EmptyState(S.zero));
 }

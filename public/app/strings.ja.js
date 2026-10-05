@@ -91,6 +91,19 @@ export const S = {
   questionLink: { confirmed: '↩ 質問への回答', candidate: '↩ 質問への回答の可能性（未確認）' },
   photo: '(画像)',
   sticker: '(スタンプ)',
+  otherKind: '(その他の種別：動画・ファイル等)', // 種別 video/file -> kind other (Q-12)
+  kindName: { text: 'テキスト', photo: '画像', sticker: 'スタンプ', other: 'その他' },
+  sendKind: { question: '質問', reply: '返信', daily: '日次', alert: 'アラート' },
+  // cross-page links and detail views (wording provisional, Q-24)
+  link: {
+    run: (t) => `巡回 ${t}`, runNotFound: '巡回の記録が見つかりません', toToday: '②本日で見る', toMessages: '③この日のメッセージ',
+    toMessage: '③で見る', toQuestion: '④で見る', toMachines: '⑥稼働機', details: '詳細', hide: '閉じる',
+  },
+  detail: {
+    messageId: 'message_id', questionId: 'question_id', runId: 'run_id', sendId: 'send_id', kind: '種別', handling: '対応',
+    posted: '投稿', received: '受信', evidence: '証跡', updated: '更新', sendOfQuestion: '質問の送信', sendNotFound: '送信記録が見つかりません',
+    sends: '送信（LINE受付）', none: '—', asStored: '記録の値をそのまま表示',
+  },
   cancelled: 'メッセージは取り消されました',
   repliesUnreadable: '返信を読み取れません',
   answersUnreadable: '回答を読み取れません',
@@ -117,6 +130,8 @@ export const S = {
     lastSuccess: '最終成功', through: '記録時点', heartbeat: 'ハートビート', ago: (m) => `${m}分前`, verify: '自己検査', failItems: '失敗項目',
     disk: 'ディスク空き', clock: '時刻ずれ', noSheet: 'ハートビートシートが未接続です', alertKind: { silent: '応答なし', recovered: '復旧', fail: '自己検査失敗' },
     notJudged: '待機機の判定基準は未確認', window: '対象時間', noBeat: '本番機のハートビートがありません',
+    generated: (t, ago) => `生成 ${t}（${ago}）`, lastHour: '直近60分の受信', perInterval: (m) => `（${m}分ごとに書込み）`,
+    recent: '受信履歴（直近60分）', count: (n) => `${n}件`,
   },
   periods: {
     d7: '7日', d30: '30日', patrolRate: '巡回 成功率', dailyRate: '日次 成功率', stopped: '欠落／停止／未確認', questions: '質問送信数',

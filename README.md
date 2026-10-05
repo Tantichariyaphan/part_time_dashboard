@@ -7,7 +7,7 @@ The real Source is not connected. The project contract is in `Claude.md` and `do
 
 ```
 npm install        # no packages are installed; it only checks the environment and writes package-lock.json
-npm test           # node --test "tests/*.test.js"   (128 tests)
+npm test           # node --test "tests/*.test.js"   (135 tests)
 npm start          # node server/index.js
 ```
 

@@ -2,3 +2,5 @@
 config/allowlist.json
 .env
 .env.*
+# Client Source samples contain real staff names and business text: keep them out of Git and out of deployments.
+docs/sample data_*/

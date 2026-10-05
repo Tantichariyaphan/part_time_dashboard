@@ -16,7 +16,7 @@ export const load = () => api('machines');
 
 const mark = (v) => (v === true ? '○' : v === false ? '×' : '—');
 
-function Machine(m) {
+function Machine(m, intervalMin) {
   const isProd = m.role === 'production';
   const hbBadge = m.ageJudged
     ? StatusBadge(m.heartbeatRed ? 'tone-blocked' : 'tone-ok', S.machines.ago(m.ageMin), { compact: true })
@@ -29,7 +29,11 @@ function Machine(m) {
       ['ChatGPT / Drive / G:', `${mark(m.chatgpt)}　${mark(m.drive)}　${mark(m.g_mounted)}`],
       [S.machines.disk, m.disk_free_gb === null ? '—' : `${m.disk_free_gb} GB`],
       [S.machines.clock, m.clock_offset_sec === null ? '—' : `${m.clock_offset_sec} s`],
-    ].filter(Boolean)));
+      [S.machines.lastHour, h('span', null, S.machines.count(m.recent.length), h('span', { class: 'small muted' }, S.machines.perInterval(intervalMin)))],
+    ].filter(Boolean)),
+    m.recent.length > 0 && h('div', { class: 'beats', 'aria-label': S.machines.recent },
+      m.recent.map((b) => h('span', { class: `beat${b.verify === 'FAIL' ? ' beat--fail' : ''}`, title: b.verify === 'FAIL' ? `FAIL ${b.fail_items ?? ''}` : 'PASS' },
+        hhmm(b.received_at), b.verify === 'FAIL' && ' FAIL'))));
 }
 
 export function view(env) {
@@ -43,12 +47,13 @@ export function view(env) {
           u.tab,
           u.status ? StatusBadge(metaTone(u.status), u.status, { compact: true }) : StatusBadge('tone-unknown', S.unknown, { compact: true }),
           hhmm(u.last_success_at) ?? '—',
-          h('span', null, hhmm(u.source_through) ?? '—', u.detail && h('span', { class: 'sub' }, u.detail)),
+          h('span', null, hhmm(u.source_through) ?? '—', u.detail && h('span', { class: 'sub' }, u.detail),
+            u.generated_at && h('span', { class: 'sub' }, S.machines.generated(hhmm(u.generated_at), agoText(u.generatedAgeMin)))),
         ]),
       })),
     d.heartbeatSheet === 'not_connected'
       ? Card({ title: S.machines.machines, aside: EvidenceBadge('NOT_CONNECTED') }, NotConnectedState(S.machines.noSheet))
-      : h('div', { class: 'stack' }, d.machines.length ? d.machines.map(Machine) : EmptyState(S.machines.noBeat)),
+      : h('div', { class: 'stack' }, d.machines.length ? d.machines.map((m) => Machine(m, d.beatIntervalMin)) : EmptyState(S.machines.noBeat)),
     d.lightChecks.length > 0 && Card({ title: S.machines.light },
       h('div', { class: 'rows' }, d.lightChecks.map((l) => h('div', { class: 'row' },
         h('div', { class: 'row-top' }, h('b', null, l.display_name), LightCheckBadge(l)),

@@ -3,7 +3,7 @@ import { h } from '../lib/dom.js';
 import { S } from '../strings.ja.js';
 import { api } from '../lib/api.js';
 import { hhmm } from '../lib/format.js';
-import { countText } from '../lib/present.js';
+import { countText, href } from '../lib/present.js';
 import { runLabel, runTone } from '../status.js';
 import { Card, KeyValues, MetricCard, Metrics, AlertCard } from '../components/cards.js';
 import { DotLabel, EvidenceBadge } from '../components/badges.js';
@@ -15,10 +15,10 @@ export const id = 'all';
 export const needsStore = false;
 export const load = () => api('all-stores');
 
-function scheduleLine(label, part) {
+function scheduleLine(label, part, store) {
   if (part.scope === 'out_of_scope') return h('div', { class: 'row-top' }, h('b', null, label), h('span', { class: 'muted' }, S.outOfScope));
   if (part.unconfirmedSchedule) return AlertCard(label, S.scheduleUnconfirmed, 'warn');
-  return h('div', { class: 'row-top' }, h('b', null, label),
+  return h('a', { class: 'row-top rowlink', href: href.today(store) }, h('b', null, label),
     h('div', { class: 'dots' }, part.items.length
       ? part.items.map((i) => DotLabel(runTone(i.status), hhmm(i.at), runLabel(i.status)))
       : h('span', { class: 'muted' }, '—')));
@@ -34,16 +34,16 @@ export function view(env) {
       if (s.connection !== 'connected') return Card(head, NotConnectedState());
       return Card(head,
         h('div', { class: 'stack' },
-          scheduleLine(S.all.patrol, s.patrol),
-          scheduleLine(S.all.daily, s.daily),
+          scheduleLine(S.all.patrol, s.patrol, s.store),
+          scheduleLine(S.all.daily, s.daily, s.store),
           Metrics(
-            MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled),
-            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`),
-            MetricCard(S.all.messages, countText(s.messagesToday), `${S.all.botReplies} ${countText(s.botRepliesToday)}`),
+            MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled, null, { href: href.today(s.store) }),
+            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, null, { href: href.questions(s.store) }),
+            MetricCard(S.all.messages, countText(s.messagesToday), `${S.all.botReplies} ${countText(s.botRepliesToday)}`, { href: href.messages(s.store) }),
           ),
-          KeyValues([
+          h('a', { class: 'rowlink', href: href.machines() }, KeyValues([
             [S.all.machine, MachineBadge(s.machine)],
             [S.all.lightCheck, LightCheckBadge(s.lightCheck)],
-          ])));
+          ]))));
     }));
 }

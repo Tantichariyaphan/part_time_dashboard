@@ -2,10 +2,10 @@
 import { h } from '../lib/dom.js';
 import { S } from '../strings.ja.js';
 import { api } from '../lib/api.js';
-import { dateLabel, hhmm } from '../lib/format.js';
-import { countText } from '../lib/present.js';
-import { handlingTone, sendTone } from '../status.js';
-import { Card, MetricCard, Metrics } from '../components/cards.js';
+import { dateLabel, hhmm, mdhm } from '../lib/format.js';
+import { countText, href, messageBody } from '../lib/present.js';
+import { handlingTone, runLabel, runTone, sendTone } from '../status.js';
+import { Card, KeyValues, MetricCard, Metrics } from '../components/cards.js';
 import { StatusBadge } from '../components/badges.js';
 import { Chips, Select } from '../components/controls.js';
 import { EmptyState, NotConnectedState } from '../components/states.js';
@@ -27,17 +27,42 @@ function Reply(r) {
     h('div', { class: 'msg-text' }, r.text));
 }
 
-function Message(m, store) {
+/** The patrol that read this message (registry run_id only). */
+function RunChip(run, store) {
+  if (!run) return null;
+  if (!run.found) return h('span', { class: 'small muted' }, S.link.runNotFound);
+  const label = h('span', { class: 'runchip' }, S.link.run(`${run.onTodayPage ? hhmm(run.scheduledAt) : mdhm(run.scheduledAt)}`),
+    StatusBadge(runTone(run.status), runLabel(run.status), { compact: true }));
+  return run.onTodayPage ? h('a', { class: 'runlink', href: href.today(store) }, label) : label;
+}
+
+function Detail(m) {
+  return h('div', { class: 'detail' },
+    KeyValues([
+      [S.detail.messageId, m.message_id],
+      [S.detail.kind, S.kindName[m.kind] ?? S.unknown],
+      [S.detail.handling, S.handling[m.handling] || S.detail.none],
+      [S.detail.runId, m.run?.run_id ?? S.detail.none],
+      ...m.replies.map((r, i) => [`${S.detail.sendId} ${i + 1}`, `${r.send_id ?? S.detail.none}（${S.sendResult[r.result] ?? S.unknown}）`]),
+    ]));
+}
+
+function Message(m, store, ctx) {
   const mark = ['pending', 'carried', 'failed', 'unknown'].includes(m.handling)
     ? StatusBadge(handlingTone(m.handling), S.handling[m.handling], { compact: true }) : null;
-  const body = m.kind === 'photo' ? S.photo : m.kind === 'sticker' ? S.sticker : m.text;
-  return h('div', { class: 'msg' },
+  const key = `m:${m.message_id}`;
+  const open = ctx.isOpen(key);
+  return h('div', { class: 'msg', id: `m-${m.message_id}` },
     h('div', { class: 'msg-meta' }, h('span', { class: 'time' }, hhmm(m.at)), h('span', null, m.group), h('span', null, m.sender), mark),
-    h('div', { class: `msg-text${m.kind !== 'text' ? ' placeholder' : ''}` }, body),
+    h('div', { class: `msg-text${m.kind !== 'text' ? ' placeholder' : ''}` }, messageBody(m)),
     m.question && h('div', { class: 'qline' },
-      h('a', { href: `#/questions?store=${encodeURIComponent(store)}&focus=${encodeURIComponent(m.question.question_id)}` },
-        S.questionLink[m.question.link] ?? S.questionLink.candidate)),
-    m.repliesOk ? m.replies.map(Reply) : h('div', { class: 'reply small' }, S.repliesUnreadable));
+      h('a', { href: href.questions(store, m.question.question_id) },
+        S.questionLink[m.question.link] ?? S.questionLink.candidate,
+        m.question.sent_at && h('span', { class: 'small muted' }, `（${mdhm(m.question.sent_at)} ${m.question.who ?? ''}）`))),
+    m.repliesOk ? m.replies.map(Reply) : h('div', { class: 'reply small' }, S.repliesUnreadable),
+    h('div', { class: 'msg-foot' }, RunChip(m.run, store),
+      h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': String(open), onclick: () => ctx.toggle(key) }, open ? S.link.hide : S.link.details)),
+    open && Detail(m));
 }
 
 export function view(env, ctx) {
@@ -56,6 +81,6 @@ export function view(env, ctx) {
       Chips([['all', S.filterAll], ['replied', S.messages.replied], ['problem', S.messages.problem]], filter.mode, (k) => { filter.mode = k; ctx.rerender(); }),
       d.groups.length > 1 && Chips([['all', `${S.messages.group}：${S.filterAll}`], ...d.groups.map((g) => [g, g])], filter.group, (k) => { filter.group = k; ctx.rerender(); })),
     Card({ title: `${d.display_name}　${dateLabel(d.businessDay)}` },
-      items.length ? h('div', { class: 'rows' }, items.map((m) => Message(m, d.store)))
+      items.length ? h('div', { class: 'rows' }, items.map((m) => Message(m, d.store, ctx)))
         : EmptyState(d.total.state === 'unpulled' ? S.notPulled : S.zero)));
 }

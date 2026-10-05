@@ -2,15 +2,15 @@
 // All business rules live in src/domain; the UI only renders what is returned here.
 import { activeStores, connectionOf, currentDay, findStore, publicFreshness, sourceThroughOf } from './context.js';
 import { storeCapability } from '../domain/capability.js';
-import { dayRuns } from '../domain/runs.js';
+import { dayRuns, effectiveRunStatus } from '../domain/runs.js';
 import { countWithCoverage, dayCoverage } from '../domain/freshness.js';
-import { addDays, businessDayWindow, formatIso, parseMs, recentDays } from '../domain/time.js';
+import { addDays, businessDayOf, businessDayWindow, formatIso, minutesBetween, parseMs, recentDays } from '../domain/time.js';
 import { filterGroup, readAnswers, stateKey, waitHours } from '../domain/questions.js';
 import { messageRow } from '../domain/messages.js';
 import { latestPerMachine, lightCheck, machineView, storeMachine } from '../domain/production.js';
 import { periodMetrics } from '../domain/metrics.js';
-import { isDummyMessage, isDummyQuestion, isDummyRun, isDummySend, real } from '../domain/dummy.js';
-import { ALERTS_SHOWN, PERIOD_DAYS, RECENT_FAILURE_DAYS } from '../domain/constants.js';
+import { isDummyBeat, isDummyMessage, isDummyQuestion, isDummyRun, isDummySend, real } from '../domain/dummy.js';
+import { ALERTS_SHOWN, HEARTBEAT_WRITE_INTERVAL_MINUTES, PERIOD_DAYS, RECENT_FAILURE_DAYS } from '../domain/constants.js';
 import { scopeOf } from '../domain/schedules.js';
 
 export class NotFound extends Error {}
@@ -47,12 +47,49 @@ function runRow(it) {
     photos_total: nz(r?.photos_total),
     photos_reviewed: nz(r?.photos_reviewed),
     owner_notified: nz(r?.owner_notified),
+    // shown in detail views only; provenance of these columns is UNCONFIRMED (Q-15) - displayed as stored, never derived
+    posted_at: nz(r?.posted_at),
+    received_at: nz(r?.received_at),
+    evidence: nz(r?.evidence),
+    updated_at: nz(r?.updated_at),
   };
 }
 
-function questionRow(q, now) {
-  const a = readAnswers(q);
+// ---------------------------------------------------------------- cross-page references (registry keys only, never inferred)
+/** Is a business day still listed on ② (today / yesterday)? Used for links only. */
+const onTodayPage = (ctx, store, day) => { const cur = currentDay(ctx, store); return day === cur || day === addDays(cur, -1); };
+
+/** run_id -> the run it names (scheduled time, effective status). Blank -> null; a key with no row -> {found:false}. */
+function runRef(ctx, store, runId) {
+  if (!runId) return null;
+  const row = ctx.screen.runs.find((r) => r.store === store.store && r.run_id === runId);
+  if (!row) return { run_id: runId, found: false };
+  const at = parseMs(row.scheduled_at);
+  const day = Number.isFinite(at) ? businessDayOf(at, store) : null;
   return {
+    run_id: runId, found: true, kind: row.kind, scheduledAt: nz(row.scheduled_at), status: effectiveRunStatus(row, store, ctx.now).status,
+    businessDay: day, onTodayPage: day ? onTodayPage(ctx, store, day) : false,
+  };
+}
+
+/** send_id -> the send-log row it names (LINE accepted / failed / unknown). Blank -> null; unknown key -> {found:false}. */
+function sendRef(ctx, store, sendId) {
+  if (!sendId) return null;
+  const s = ctx.screen.sends.find((x) => x.store === store.store && x.send_id === sendId);
+  if (!s) return { send_id: sendId, found: false };
+  return { send_id: sendId, found: true, sent_at: s.sent_at, kind: s.kind, target_label: s.target_label, result: s.result };
+}
+
+const dayOf = (store, iso) => { const t = parseMs(iso); return Number.isFinite(t) ? businessDayOf(t, store) : null; };
+
+function questionRow(q, now, ctx = null, store = null) {
+  const a = readAnswers(q);
+  const refs = ctx && store ? {
+    run: runRef(ctx, store, q.run_id),
+    send: sendRef(ctx, store, q.send_id),
+  } : {};
+  return {
+    ...refs,
     question_id: q.question_id,
     run_id: q.run_id,
     sent_at: q.sent_at,
@@ -64,7 +101,7 @@ function questionRow(q, now) {
     closed_reason: q.closed_reason,
     closed_at: q.closed_at,
     answersOk: a.ok,
-    answers: a.answers.map(({ message_id, at, who, text, link }) => ({ message_id, at, who, text, link })),
+    answers: a.answers.map(({ message_id, at, who, text, link }) => ({ message_id, at, who, text, link, businessDay: store ? dayOf(store, at) : null })),
     filterGroup: filterGroup(q),
   };
 }
@@ -148,12 +185,16 @@ export function runDetail(ctx, storeId, runId) {
   if (!runId) throw new BadRequest('run_id required');
   const run = ctx.screen.runs.find((r) => r.store === store.store && r.run_id === runId);
   if (!run) throw new NotFound('unknown run');
+  const eff = effectiveRunStatus(run, store, ctx.now);
+  const questionsOfRun = ctx.screen.questions.filter((q) => q.store === store.store && q.run_id === runId);
+  const sendIds = [...new Set(questionsOfRun.map((q) => q.send_id).filter(Boolean))];
   return {
     run_id: runId,
+    run: runRow({ row: run, kind: run.kind, scheduledMs: parseMs(run.scheduled_at), status: eff.status, derived: eff.derived }),
     messages: ctx.screen.messages.filter((m) => m.store === store.store && m.run_id === runId)
-      .map(messageRow).sort((a, b) => b.atMs - a.atMs).map(({ atMs, ...m }) => m),
-    questions: ctx.screen.questions.filter((q) => q.store === store.store && q.run_id === runId)
-      .map((q) => questionRow(q, ctx.now)).sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1)),
+      .map(messageRow).sort((a, b) => b.atMs - a.atMs).map(({ atMs, ...m }) => ({ ...m, businessDay: dayOf(store, m.at) })),
+    questions: questionsOfRun.map((q) => questionRow(q, ctx.now, ctx, store)).sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1)),
+    sends: sendIds.map((id) => sendRef(ctx, store, id)), // the question sends of this patrol (by send_id key)
   };
 }
 
@@ -179,15 +220,22 @@ export function messages(ctx, storeId, dayParam) {
     total: countWithCoverage(realRows.length, cov),
     botReplied: countWithCoverage(realRows.filter((r) => r.flags.replied).length, cov),
     groups: [...new Set(rows.map((r) => r.group))].sort(),
-    items: rows.map(({ atMs, ...r }) => r),
+    items: rows.map(({ atMs, ...r }) => ({ ...r, run: runRef(ctx, store, r.run_id), question: questionRef(ctx, store, r.question) })),
   };
+}
+
+/** Adds the question's send time / recipient to a message's question link (link strength unchanged). */
+function questionRef(ctx, store, qLink) {
+  if (!qLink) return null;
+  const q = ctx.screen.questions.find((x) => x.store === store.store && x.question_id === qLink.question_id);
+  return { ...qLink, found: !!q, sent_at: q?.sent_at ?? null, who: q?.who ?? null };
 }
 
 // ---------------------------------------------------------------- ④ questions
 export function questions(ctx, storeId) {
   const store = storeOrThrow(ctx, storeId);
   if (connectionOf(ctx, store) !== 'connected') return { store: store.store, display_name: store.display_name, connection: 'not_connected' };
-  const qs = questionsOf(ctx, store).map((q) => questionRow(q, ctx.now)).sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1));
+  const qs = questionsOf(ctx, store).map((q) => questionRow(q, ctx.now, ctx, store)).sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1));
   const cap = storeCapability(store, 'connected', questionsOf(ctx, store));
   const count = (g) => qs.filter((q) => q.filterGroup === g).length;
   return {
@@ -213,7 +261,7 @@ export function failures(ctx) {
       const { items: its } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: cur });
       for (const it of its) {
         if (!PROBLEM.has(it.status)) continue;
-        items.push({ ...runRow(it), store: store.store, display_name: store.display_name, businessDay: day });
+        items.push({ ...runRow(it), store: store.store, display_name: store.display_name, businessDay: day, onTodayPage: onTodayPage(ctx, store, day) });
         if (it.status === 'missing' || it.status === 'no_row') totals.missing += 1;
         else totals[it.status] += 1;
       }
@@ -224,7 +272,10 @@ export function failures(ctx) {
   const sendProblems = real(ctx.screen.sends, isDummySend)
     .filter((s) => connected.some((c) => c.store === s.store) && (s.result === 'unknown' || s.result === 'failed') && parseMs(s.sent_at) >= windowStart)
     .sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1))
-    .map((s) => ({ store: s.store, send_id: s.send_id, sent_at: s.sent_at, kind: s.kind, target_label: s.target_label, text: s.text, result: s.result }));
+    .map((s) => {
+      const st = connected.find((c) => c.store === s.store);
+      return { store: s.store, send_id: s.send_id, sent_at: s.sent_at, kind: s.kind, target_label: s.target_label, text: s.text, result: s.result, businessDay: dayOf(st, s.sent_at) };
+    });
   return {
     days: RECENT_FAILURE_DAYS, totals, items, sendProblems,
     notConnected: stores.filter((s) => connectionOf(ctx, s) !== 'connected').map((s) => ({ store: s.store, display_name: s.display_name })),
@@ -240,13 +291,25 @@ export function machines(ctx) {
   return {
     updates: ctx.freshness.tabs.map((t) => ({
       tab: t.tab, status: t.status, last_success_at: t.last_success_at, source_through: t.source_through, detail: t.detail,
-      generated_at: t.generated_at, normal: t.normal,
+      generated_at: t.generated_at, generatedAgeMin: t.generatedAgeMin, normal: t.normal,
     })),
     heartbeatSheet: beats == null ? 'not_connected' : 'connected',
-    machines: latest == null ? [] : latest.filter(Boolean).map((b) => machineView(b, ctx.now)).sort((a, b) => (a.role === 'production' ? -1 : 1) - (b.role === 'production' ? -1 : 1)),
+    beatIntervalMin: HEARTBEAT_WRITE_INTERVAL_MINUTES, // machines write one row every 5 min (REQ §5-3): shown as information, not judged
+    machines: latest == null ? [] : latest.filter(Boolean).map((b) => ({ ...machineView(b, ctx.now), recent: recentBeats(beats, b, ctx.now) }))
+      .sort((a, b) => (a.role === 'production' ? -1 : 1) - (b.role === 'production' ? -1 : 1)),
     lightChecks: stores.map((s) => ({ store: s.store, display_name: s.display_name, window: s.text_patrol, ...lightCheck(s, beats, ctx.now) })),
     alerts,
   };
+}
+
+/** Beats of one machine received in the last 60 minutes, newest first (as stored; no threshold applied here). */
+function recentBeats(beats, latestBeat, now) {
+  return real(beats, isDummyBeat)
+    .filter((b) => b.host === latestBeat.host && b.role === latestBeat.role)
+    .map((b) => ({ received_at: b.received_at, at: parseMs(b.received_at), verify: b.verify, fail_items: b.fail_items }))
+    .filter((b) => Number.isFinite(b.at) && b.at <= now && minutesBetween(b.at, now) < 60)
+    .sort((a, b) => b.at - a.at)
+    .map(({ at, ...b }) => b);
 }
 
 // ---------------------------------------------------------------- ⑦ period numbers

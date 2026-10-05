@@ -127,7 +127,10 @@ function rerender() {
 function focusTarget(query) {
   const f = query.get('focus');
   if (!f) return;
-  document.getElementById(`q-${f}`)?.scrollIntoView({ block: 'start' });
+  const el = document.getElementById(`q-${f}`) ?? document.getElementById(`m-${f}`); // ④ question or ③ message
+  if (!el) return;
+  el.classList.add('is-focus');
+  el.scrollIntoView({ block: 'start' });
 }
 
 async function boot() {
