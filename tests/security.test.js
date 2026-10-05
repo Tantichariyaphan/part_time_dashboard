@@ -84,7 +84,7 @@ test('API responses contain none of the fields the Read Copy must never carry', 
 test('nothing in the server, domain or UI can send registry text to another host', () => {
   const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : [p.split('\\').join('/')]; });
   const root = fileURLToPath(new URL('..', import.meta.url));
-  for (const f of ['server', 'src', 'public', 'scripts'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
+  for (const f of ['server', 'src', 'public', 'scripts', 'api'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
     const t = readFileSync(f, 'utf8');
     assert.equal(/node:(https|net|tls|dgram|dns|child_process|worker_threads|cluster)|from 'https?'|require\(/.test(t), false, `${f} imports a network/process module`);
     assert.equal(/\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b|sendBeacon|navigator\.|importScripts/.test(t), false, `${f} uses a browser network channel`);
@@ -98,7 +98,7 @@ test('nothing in the server, domain or UI can send registry text to another host
   assert.equal(/https?:\/\//.test(api), false);
   for (const f of walk(join(root, 'public'))) assert.equal(/fetch\(/.test(readFileSync(f, 'utf8')) && !f.endsWith('/public/app/lib/api.js'), false, `${f} fetches`);
   // Server side: the only outbound call is the Google OIDC provider, which imports no registry/Screen Data code.
-  for (const f of ['server', 'src'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
+  for (const f of ['server', 'src', 'api'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
     const t = readFileSync(f, 'utf8');
     if (f.endsWith('/server/auth/google.js')) {
       assert.equal(/from '\.\.\/\.\.\/src|from '\.\.\/api|adapters|viewmodels/.test(t), false, 'google.js must not import data code');

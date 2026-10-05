@@ -4,6 +4,9 @@
 // Deny by default. Where the list lives in production is UNCONFIRMED (Q-04); the prototype reads a JSON file that
 // lives OUTSIDE public/ (never served) and reads it on every check, so add / remove / revoke takes effect on the
 // very next request without a restart. Any problem with the file (missing, unreadable, invalid) denies everyone.
+// Hosted deployments (e.g. the Vercel demo) can instead pass the same JSON in the environment variable
+// NIKUSHO_ALLOWLIST_JSON, so real e-mail addresses never enter the repository; it is read once per deployment
+// (changing it = edit the variable + redeploy). An invalid value also denies everyone.
 //
 // File format:
 //   { "viewers": [ { "email": "someone@example.com", "name": "label for operators", "active": true, "sub": "optional" } ] }
@@ -74,5 +77,16 @@ export function createFileAllowlist(path, { log = (m) => console.error(m) } = {}
   return {
     kind: 'file',
     check(identity) { refresh(); return decide(entries, identity); },
+  };
+}
+
+/** Allowlist from an environment variable (same JSON format). Parsed once; any defect denies everyone (fail closed). */
+export function createEnvAllowlist(text, { log = (m) => console.error(m) } = {}) {
+  let entries = null;
+  try { entries = parseAllowlist(JSON.parse(String(text ?? ''))); }
+  catch (e) { log(`[auth] NIKUSHO_ALLOWLIST_JSON rejected - denying everyone (${e instanceof AllowlistError ? e.message : 'not valid JSON'})`); }
+  return {
+    kind: 'env',
+    check(identity) { return decide(entries, identity); },
   };
 }

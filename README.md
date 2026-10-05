@@ -7,7 +7,7 @@ The real Source is not connected. The project contract is in `Claude.md` and `do
 
 ```
 npm install        # no packages are installed; it only checks the environment and writes package-lock.json
-npm test           # node --test "tests/*.test.js"   (122 tests)
+npm test           # node --test "tests/*.test.js"   (128 tests)
 npm start          # node server/index.js
 ```
 
@@ -23,7 +23,8 @@ npm start          # node server/index.js
 * Default `NIKUSHO_AUTH=dev-loopback`: the dev gate. **Not authentication**; synthetic data only; loopback only.
 * `NIKUSHO_AUTH=google`: the **Auth Prototype** — "Sign in with Google" → server-verified identity → server session (HttpOnly cookie) →
   server-side allowlist on every API request → read-only API. Needs `NIKUSHO_PUBLIC_ORIGIN`, `GOOGLE_OAUTH_CLIENT_ID`,
-  `GOOGLE_OAUTH_CLIENT_SECRET`, `NIKUSHO_ALLOWLIST_FILE` (format: `config/allowlist.example.json`).
+  `GOOGLE_OAUTH_CLIENT_SECRET`, and `NIKUSHO_ALLOWLIST_JSON` or `NIKUSHO_ALLOWLIST_FILE` (format: `config/allowlist.example.json`).
+  Vercel demo (mock data only): `api/server.js` + `vercel.json`, see `docs/auth-prototype.md` §10a.
   Setup, allowlist add/remove/revoke procedure, tests and open items: `docs/auth-prototype.md`.
   Not verified with real accounts (TV3/TV15 not passed); production hosting/OAuth client belong to the client (Q-01).
 

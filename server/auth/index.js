@@ -2,7 +2,7 @@
 //   Google provider (authentication)  +  session store  +  allowlist (authorization)  ->  { gate, routes }
 import { createGoogleProvider } from './google.js';
 import { createSessionStore, cookieNames } from './session.js';
-import { createFileAllowlist } from './allowlist.js';
+import { createEnvAllowlist, createFileAllowlist } from './allowlist.js';
 import { createSessionGate } from './authorize.js';
 import { createAuthRoutes } from './routes.js';
 
@@ -13,7 +13,9 @@ import { createAuthRoutes } from './routes.js';
 export function createGoogleAuth(config, deps = {}) {
   const now = deps.now ?? Date.now;
   const provider = deps.provider ?? createGoogleProvider({ clientId: config.google.clientId, clientSecret: config.google.clientSecret, now });
-  const allowlist = deps.allowlist ?? createFileAllowlist(config.allowlistFile, { log: deps.log });
+  const allowlist = deps.allowlist ?? (config.allowlistJson !== null
+    ? createEnvAllowlist(config.allowlistJson, { log: deps.log }) // NIKUSHO_ALLOWLIST_JSON wins over the file
+    : createFileAllowlist(config.allowlistFile, { log: deps.log }));
   const sessions = createSessionStore({ idleMs: config.session.idleMs, maxMs: config.session.maxMs, now });
   const cookies = cookieNames(config.secureCookies);
   const gate = createSessionGate({ sessions, allowlist, cookieName: cookies.session, publicHost: config.publicHost });

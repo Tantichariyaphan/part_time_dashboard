@@ -61,7 +61,8 @@ HEAD is refused on login/callback/logout so it can never change a session.
 | `NIKUSHO_PUBLIC_ORIGIN` | google | origin the browser uses, e.g. `http://localhost:3000`. Must be `https://…` except for localhost. Requests with another `Host` are refused on `/api` and `/auth` |
 | `GOOGLE_OAUTH_CLIENT_ID` | google | OAuth 2.0 client ID (type *Web application*) |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | google | its secret — server environment only; never in source, never sent to the browser, never logged |
-| `NIKUSHO_ALLOWLIST_FILE` | google | path of the allowlist JSON (keep it outside `public/`; `config/allowlist.json` is git-ignored) |
+| `NIKUSHO_ALLOWLIST_JSON` | google (this **or** the file) | the allowlist JSON itself, for hosted deployments (Vercel demo): the e-mail addresses stay out of the repository. Wins over `NIKUSHO_ALLOWLIST_FILE` when both are set. Read once per deployment |
+| `NIKUSHO_ALLOWLIST_FILE` | google (this **or** the JSON) | path of the allowlist JSON (keep it outside `public/`; `config/allowlist.json` is git-ignored) |
 | `NIKUSHO_SESSION_IDLE_MINUTES` | — | default 60 (provisional, no REQ value) |
 | `NIKUSHO_SESSION_MAX_HOURS` | — | default 12 (provisional, no REQ value) |
 | `HOST`, `PORT`, `NIKUSHO_LIVE_ADAPTER`, `NIKUSHO_DEV_SCENARIO` | — | unchanged (README) |
@@ -120,6 +121,9 @@ Procedure (prototype):
 | Re-allow | set `"active": true` again | next request |
 
 Edit a copy and replace the file in one step where possible; a half-written file is rejected (deny all), never read as "allow".
+With `NIKUSHO_ALLOWLIST_JSON` (Vercel demo) the same rules apply, but the value is read once per deployment: edit the variable
+in Vercel (**Settings → Environment Variables**) and **Redeploy**; the change applies from the new deployment. An invalid value denies
+everyone (fail closed) and the reason appears in the Vercel logs without any e-mail address.
 Who maintains the list and where it lives in production: **UNCONFIRMED / Q-04**.
 
 ## 7. Logout
@@ -204,6 +208,21 @@ $env:NIKUSHO_ALLOWLIST_FILE='config/allowlist.json'; npm start
 ```
 
 Open `http://localhost:3000/` (exactly the origin configured; `127.0.0.1` is refused in this mode).
+
+## 10a. Vercel demo deployment (prototype only — mock/demo data)
+
+Files: `api/server.js` (entry; passes requests to `server/index.js`), `vercel.json` (`outputDirectory: public` so only the app shell is
+static; `/auth/*` and `/api/*` rewritten to the entry; security headers). Environment (Production): `NIKUSHO_AUTH=google`,
+`NIKUSHO_PUBLIC_ORIGIN=https://<project>.vercel.app`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `NIKUSHO_ALLOWLIST_JSON`.
+Google OAuth client: redirect URI `https://<project>.vercel.app/auth/callback`; test users on the consent screen while it is in *Testing*.
+
+* A wrong or missing variable never crashes the function: every `/auth` and `/api` request gets **503 `server not configured`**
+  with no data, and the Vercel log names the variable (never its value). Values are trimmed (pasted spaces/line breaks are ignored).
+* Preview URLs are refused (Host check); use the production URL.
+* Sessions and login flows live in function memory: a new instance can end a session or fail a login in progress (sign in again).
+  Revocation through `NIKUSHO_ALLOWLIST_JSON` needs a redeploy. Neither is evidence for TV3/TV15 in the client's environment.
+* Not production: Vercel under a PIATEC/personal account must never serve real Source data (Q-01).
+* Tests: `tests/vercel.test.js` (entry start-up, 503 on misconfiguration, trimmed values, env allowlist, sign-in allow/deny via the test IdP).
 
 ## 11. Remaining UNCONFIRMED items
 

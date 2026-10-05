@@ -11,7 +11,7 @@ const walk = (dir) => readdirSync(dir).flatMap((n) => {
   if (n === 'node_modules' || n === '.git') return [];
   return statSync(p).isDirectory() ? walk(p) : [p.split('\\').join('/')];
 });
-const code = ['public', 'src', 'server', 'scripts'].flatMap((d) => walk(join(ROOT, d))).filter((f) => /\.(js|html|css)$/.test(f));
+const code = ['public', 'src', 'server', 'scripts', 'api'].flatMap((d) => walk(join(ROOT, d))).filter((f) => /\.(js|html|css)$/.test(f));
 
 test('UI never interprets registry text as markup', () => {
   for (const f of code.filter((x) => x.includes('/public/'))) {

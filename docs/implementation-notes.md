@@ -84,6 +84,7 @@ REQ §7-6 as written; Q-01, Q-04 and Q-05 stay **open** (no production decision 
 | N-24 | Outbound traffic | `server/auth/google.js` is the single module allowed to call out, only to Google's fixed OAuth endpoints; it imports no data code (static tests). | REQ §7-8 |
 | N-25 | Logout over GET | The service stays GET/HEAD-only, so logout is `GET /auth/logout`; the Strict session cookie keeps other sites from triggering it with the viewer's session. | — |
 | N-26 | Host check | In google mode `/api` and `/auth` refuse any `Host` other than `NIKUSHO_PUBLIC_ORIGIN`'s. | — |
+| N-27 | Vercel demo | `api/server.js` + `vercel.json` (2026-10-06). Allowlist may come from `NIKUSHO_ALLOWLIST_JSON` (wins over the file; read once per deployment; invalid → deny all) so real e-mails stay out of Git. Misconfiguration → 503 with no data, reason in the log. Values trimmed. Mock/demo data only; not the client environment. | Q-01, Q-04, Q-44 |
 
 Proposed questions (not yet in the Q register):
 
