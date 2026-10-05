@@ -1,0 +1,13 @@
+{
+  "name": "nikusho-monitor-skeleton",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NIKUSHO AI Monitoring System - Dashboard Skeleton + Screen Data Contract + Mock/Demo Adapter + read-only API. NOT production source integration.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test \"tests/*.test.js\"",
+    "demo:snapshot": "node scripts/build-demo-snapshot.js"
+  }
+}

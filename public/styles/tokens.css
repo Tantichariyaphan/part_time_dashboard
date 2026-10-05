@@ -1,0 +1,45 @@
+/* Design tokens. Light mode only.
+   Brand (from the project brief): white #FFFFFF / red #CD282C / black #000000.
+   Brand red is used ONLY for the brand mark, never for statuses.
+   Semantic status colours follow REQ §6 (green, light green, yellow, grey, dark yellow, red, dark red);
+   hex values are taken from 03_ตัวอย่างหน้าจอ.html where it defines them (dark yellow is not defined there: chosen here). */
+:root {
+  color-scheme: light;
+
+  /* neutrals */
+  --bg: #f5f4f1;
+  --bg-tint: #fbfaf8;
+  --surface: #ffffff;
+  --ink: #111111;
+  --ink-2: #4f4d49;
+  --ink-3: #7c7a75;
+  --line: #e4e1da;
+  --line-strong: #cfcbc2;
+
+  /* brand (identity only) */
+  --brand: #cd282c;
+
+  /* semantic status colours (REQ §6 table) */
+  --st-ok: #2e8b57;        /* green        ok            */
+  --st-silent: #9ccfb2;    /* light green  silent_ok     */
+  --st-late: #d9a400;      /* yellow       late / candidate / acked */
+  --st-wait: #9a9892;      /* grey         running / not due / closed */
+  --st-unknown: #8a6a00;   /* dark yellow  unknown       */
+  --st-blocked: #c8372d;   /* red          blocked / waiting */
+  --st-missing: #8f1d16;   /* dark red     missing / no row  */
+
+  /* glass: used only for header + update indicator + hero summary */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 1px 0 rgba(17, 17, 17, 0.04), 0 8px 24px -12px rgba(17, 17, 17, 0.18);
+
+  /* shape / spacing */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --gap: 12px;
+  --gutter: 16px;
+
+  --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo",
+    "Noto Sans Thai", "Tahoma", system-ui, -apple-system, "Segoe UI", sans-serif;
+}

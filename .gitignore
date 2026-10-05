@@ -1,0 +1,4 @@
+# Real allowlist (personal e-mail addresses) and local secrets never go into the repository.
+config/allowlist.json
+.env
+.env.*
