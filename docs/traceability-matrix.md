@@ -1,7 +1,7 @@
 # Traceability matrix
 
 Every implemented Screen Data field, API field, metric, status and UI state, with its source in the contract.
-Source keys: **REQ** = Requirement 2026-10-02 draft 5 (§ number); **ARCH / CONN / MAP / CLAUDE** = `docs/architecture.md`, `docs/connection-spec.md`, `docs/data-mapping.md`, `Claude.md`; **Q-xx** = register in CONN §12; **Q-xx (proposed)** = proposed in `docs/implementation-notes.md`, not yet in the register.
+Source keys: **REQ** = Requirement 2026-10-02 draft 5 (§ number); **CLIENT 10/7** = the client's architecture update (`docs/connection-spec.md` §0, Data Contract v1 §4); **ARCH / CONN / MAP / CLAUDE** = `docs/architecture.md`, `docs/connection-spec.md`, `docs/data-mapping.md`, `Claude.md`; **Q-xx** = register in CONN §12; **Q-xx (proposed)** = proposed in `docs/implementation-notes.md`, not yet in the register.
 Anything without an authoritative source is marked **UNCONFIRMED** (listed again in section 6). No requirement was created to fill a gap.
 
 ## 1. Screen Data fields (`src/contract/columns.js`)
@@ -85,7 +85,7 @@ Envelope (all): `ok`, `entry`, `now`, `freshness{state, reasons[], sourceThrough
 | Unreadable answers / replies | REQ §6-④, TV13 |
 | Demo strip "สาธิต", separate entry, no switch | REQ §7-12 |
 | Read-only: buttons only open / filter / back | REQ §6 common rules, §7-1 |
-| Sign-in / access-denied panels, signed-in line + logout (Auth Prototype) | REQ §7-6 (deny on the server; screens only explain) — wording **UNCONFIRMED / Q-24**. Real-account evidence: non-allowlisted Google account `goter5555@gmail.com` successfully signed in and received “You do not have access rights. This account is not authorized to view the administration panel.” (**PASS** for this authorization check). Logout with a real Google account, revocation without logout, and direct API access after revocation are not yet verified. |
+| Sign-in / access-denied panels, signed-in line + logout (Auth Prototype) | REQ §7-6 (deny on the server; screens only explain) — wording **UNCONFIRMED / Q-24**. Real-account evidence: non-allowlisted Google account `demo@example.invalid` successfully signed in and received “You do not have access rights. This account is not authorized to view the administration panel.” (**PASS** for this authorization check). Logout with a real Google account, revocation without logout, and direct API access after revocation are not yet verified. |
 | Loading / generic error / forbidden states | No REQ clause (implementation necessity; wording Q-24) — **UNCONFIRMED / Q-24** |
 | "DEV MOCK" strip | Master Development Prompt only; to be removed with the mock adapter — **UNCONFIRMED** |
 | 60 s quiet refresh (live entry) | No REQ clause (keeps "n minutes ago" honest) — **UNCONFIRMED / Q-41 (proposed)** |
@@ -114,3 +114,43 @@ Envelope (all): `ok`, `entry`, `now`, `freshness{state, reasons[], sourceThrough
 | `other` message kind label | UNCONFIRMED / Q-12 |
 | DEV MOCK strip, `adapterKind` field | Not a REQ item; dev-only, removed with the mock |
 | Required-column strictness (any missing column stops the screen) | UNCONFIRMED / Q-35 (proposed); REQ §6 says "ขาดคอลัมน์จำเป็น" without listing which columns are required |
+
+## 7. Client update 2026-10-07 — trace of the changed items
+
+| Item | Now traced to | Status |
+|---|---|---|
+| Who builds / runs the copy | CLIENT 10/7 (CONN §0-1) | CONFIRMED |
+| Copy columns (Data Contract v1) and copy `meta` | CLIENT 10/7 (CONN §4.1, §4.2) | CONFIRMED; `meta` values Q-50 |
+| Row identity `元の行番号`, in-place update, never twice, from 2026-09-01 | CLIENT 10/7 (CONN §0-5, §0-6) | CONFIRMED |
+| Recipient class `OWNER` (`宛先の群`) | CLIENT 10/7 (CONN §4.3) | CONFIRMED (Q-13 closed) |
+| Substitute keys `発言者キー` / `宛先キー`; masked owner-report lines | CLIENT 10/7 (CONN §4.3) | CONFIRMED; masked format Q-51 |
+| Reader account (two files) separate from login accounts | CLIENT 10/7 (CONN §0-3, §0-4) | CONFIRMED; account itself Q-48 (PIATEC action) |
+| Schedule history, daily 00:35, `snowmaru` | CLIENT 10/7 (CONN §0-12, §0-13) | CONFIRMED (Q-16 closed) — configuration data, not code |
+| 5-min polling loop since 10/5 23:36; scheduled runs send nothing; `AI=scheduled-off` | CLIENT 10/7 (CONN §0-14 … §0-17) | facts CONFIRMED; run-status reading **UNCONFIRMED (Q-49)** |
+| `AI質問追跡` gap since 10/6 | CLIENT 10/7 (CONN §0-15) | temporary; fix/backfill Q-52 |
+| Mock fixtures, view models, pages | unchanged; still synthetic | — |
+
+## 8. View-only Copy connector (built 2026-10-07) — requirement → code → test
+
+Synthetic tests only (`tests/copy.test.js`, `tests/copy-reader.test.js`, fixtures `tests/copyFixtures.js`). None is evidence about
+the client's real copy; TV9 / TV24 remain type-A tests on real data.
+
+| Requirement | Source | Code | Test | Status |
+|---|---|---|---|---|
+| Data Contract v1 tabs and columns, exact | CONN §4.1 | `src/contract/copyContract.js` | COPY-1, COPY-4 | IMPLEMENTED |
+| Required tabs; copy `meta` structure, `contract_version` v1 | CONN §4.2; Q-50 | `src/adapters/copy/validate.js` | COPY-3, COPY-5, COPY-6, READER-5 | IMPLEMENTED; literal values Q-50 |
+| Forbidden fields `userId` / `宛先ID` / `画像URL` block the tab, never stripped, never echoed | REQ §5-1; CONN §4.4, §5 | validate.js, `server/source/sheetsReader.js` | COPY-7, COPY-8, COPY-11, COPY-31, READER-5 | IMPLEMENTED |
+| Five groups only; `グループID` suffix = `群`; `OWNER` only as `宛先の群` | REQ §5-1; CONN §4.3 | validate.js, transform.js | COPY-1, COPY-9 | IMPLEMENTED |
+| `元の行番号` identity; duplicates / malformed rows block | CONN §0-5 | validate.js | COPY-10 | IMPLEMENTED |
+| Update in place; idempotent rebuild; no duplicates | CONN §0-5, §8.3 | transform.js, copyAdapter.js | COPY-13, COPY-14, COPY-15, COPY-30 | IMPLEMENTED |
+| Send result OK / NG( / ATTEMPTING_NO_RETRY; others unclassified | DM §6.3 | transform.js | COPY-13, COPY-16 | IMPLEMENTED |
+| Bot reply links by column 6 only, never guessed | DM §8; Q-12, Q-19 | transform.js | COPY-17, COPY-18, COPY-29 | IMPLEMENTED (conservative reading) |
+| Cancelled message shown without content | DM §6.2; Q-17 | transform.js, `src/domain/messages.js`, ③ | COPY-13, COPY-15 | IMPLEMENTED; representation Q-17 |
+| Copy `meta` → banner; unknown status not given a meaning | CONN §8.2; Q-09, Q-50 | transform.js → existing `freshness.js` | COPY-19, COPY-20 | IMPLEMENTED (proposed derivation) |
+| `AI質問追跡` rows; gap since 10/5 23:36 never read as zero | CONN §0-15; Q-52 | transform.js, copyContract `COPY_SOURCE_LIMITS`, view models ①④⑦ | COPY-22 | PARTIAL |
+| Run status not derived; `AI=scheduled-off` unclassified | CONN §0-16, §0-17; Q-49 | `src/domain/runs.js` (`statusUnconfirmed`), metrics.js, ①②⑤⑦ | COPY-23 | BLOCKED by Q-49 (shown "状態未判定") |
+| Heartbeat Sheet as a separate source; NOT_CONNECTED when unavailable | CONN §0-18; REQ §5-3 | copyAdapter.js, validate.js | COPY-24, COPY-25 | IMPLEMENTED; live NOT_CONNECTED (Q-48) |
+| Reader account only; ids from server config; browser cannot choose a file; GET only | CONN §0-3; REQ §7-2, §7-5 | sheetsReader.js, `server/source/config.js`, `server/index.js` | READER-1…6, CONFIG-1, CONFIG-2, SERVER-1, SERVER-3, security.test | IMPLEMENTED; account itself **BLOCKED (Q-48)** |
+| Real-data adapter refused behind the dev gate | REQ §7-6 | `server/auth/gate.js` (unchanged) | SERVER-2 | IMPLEMENTED |
+| ≤10 min new row → screen | REQ §5 | read at most once a minute; Transform once per read | COPY-21, COPY-30 | IMPLEMENTED on PIATEC side; TV9 BLOCKED |
+| Tests carry no client data | REQ §7-9 | — | COPY-28 | IMPLEMENTED |

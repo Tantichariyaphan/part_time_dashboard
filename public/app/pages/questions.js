@@ -62,6 +62,7 @@ export function view(env, ctx) {
   return h('div', { class: 'stack' },
     h('div', { class: 'bar-controls' }, EvidenceBadge(d.answerEvidence), d.answerEvidence !== 'CONFIRMED' && h('span', { class: 'small muted' }, S.questions.candidateNote)),
     d.answerEvidence === 'CANDIDATE' && AlertCard(null, S.questions.candidateNote, 'warn'),
+    d.incompleteFrom && AlertCard(null, S.questionsIncomplete(mdhm(d.incompleteFrom)), 'warn'), // Q-52: not "0 questions"
     Chips([['all', `${S.questions.filters.all} ${c.all}`], ['waiting', `${S.questions.filters.waiting} ${c.waiting}`],
       ['answered', `${S.questions.filters.answered} ${c.answered}`], ['closed', `${S.questions.filters.closed} ${c.closed}`]],
     filter.key, (k) => { filter.key = k; ctx.rerender(); }),

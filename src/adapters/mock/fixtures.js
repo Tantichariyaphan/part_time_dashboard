@@ -1,6 +1,6 @@
 // Mock/Demo data generator. DEVELOPMENT ONLY - synthetic, deterministic, contains NO customer data.
 // Produces raw "sheet" tabs shaped exactly like Screen Data (REQ §5-3 / docs/data-mapping.md §5) so the real
-// pipeline (Source -> Copy Process -> Read Copy -> Screen Data) can later replace this adapter without UI changes.
+// pipeline (client Copy Script -> View-only Copy -> PIATEC Transform -> Screen Data) can later replace this adapter without UI changes.
 //
 // Everything here is invented: store ids, staff names, hosts, texts. No real identifiers (userId, recipient ID,
 // image URL) exist in this module and none may be added (REQ §5-1).
@@ -66,7 +66,7 @@ export function buildMockTabs(now, { variant = 'dev', scenario = 'full', days = 
   ];
   const A = stores[0];
   const today = businessDayOf(now, A);
-  const cutover = addDays(today, -5); // mock: the 17:00 patrol starts here (real date is UNCONFIRMED, Q-16)
+  const cutover = addDays(today, -5); // mock: the 17:00 patrol starts here (real Bangkok date: 2026-10-02, confirmed 10/7 - configuration data, not hard-coded)
   const schedules = [
     { store: 'STORE_A', kind: 'slot', times: '12:00,22:00', valid_from: addDays(today, -60), valid_to: addDays(cutover, -1) },
     { store: 'STORE_A', kind: 'slot', times: '12:00,17:00,22:00', valid_from: cutover, valid_to: '' },

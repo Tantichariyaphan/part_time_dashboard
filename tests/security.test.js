@@ -97,10 +97,19 @@ test('nothing in the server, domain or UI can send registry text to another host
   assert.deepEqual(targets.sort(), ["'/auth/me'", '`/api/${entryName()}/${resource}${q.size ? `?${q}` : \'\'}`'].sort());
   assert.equal(/https?:\/\//.test(api), false);
   for (const f of walk(join(root, 'public'))) assert.equal(/fetch\(/.test(readFileSync(f, 'utf8')) && !f.endsWith('/public/app/lib/api.js'), false, `${f} fetches`);
-  // Server side: the only outbound call is the Google OIDC provider, which imports no registry/Screen Data code.
+  // Server side: the only outbound calls are the Google OIDC provider and the reader of the client's two spreadsheets.
+  // Neither imports registry/Screen Data code, so neither can send registry text anywhere.
   for (const f of ['server', 'src', 'api'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
     const t = readFileSync(f, 'utf8');
-    if (f.endsWith('/server/auth/google.js')) {
+    if (f.endsWith('/server/source/sheetsReader.js')) {
+      assert.equal(/^import /m.test(t), false, 'sheetsReader.js must import nothing (no data code)');
+      assert.equal((t.match(/fetchImpl\(/g) ?? []).length, 1, 'sheetsReader.js: exactly one outbound call site');
+      assert.match(t, /method: 'GET'/);
+      assert.equal(/method:\s*'(POST|PUT|PATCH|DELETE)'|\bbody\s*:/.test(t), false, 'sheetsReader.js: GET only, no request body');
+      assert.match(t, /const SHEETS_API = 'https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/';/);
+      assert.equal((t.match(/getJson\(`\$\{base\}/g) ?? []).length, 3, 'sheetsReader.js: every request is built on the fixed base');
+      assert.equal((t.match(/getJson\(/g) ?? []).length, 4, 'sheetsReader.js: the three requests plus the helper definition');
+    } else if (f.endsWith('/server/auth/google.js')) {
       assert.equal(/from '\.\.\/\.\.\/src|from '\.\.\/api|adapters|viewmodels/.test(t), false, 'google.js must not import data code');
       assert.ok((t.match(/fetchImpl\(/g) ?? []).length === 2, 'google.js: exactly two outbound calls (JWKS, token)');
       assert.ok(/fetchImpl\(endpoints\.jwks/.test(t) && /fetchImpl\(endpoints\.token/.test(t));

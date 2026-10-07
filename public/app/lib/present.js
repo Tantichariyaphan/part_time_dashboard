@@ -16,6 +16,7 @@ export function countText(c) {
 
 /** Message body as displayed: photo / sticker / other kinds have no text in Screen Data (REQ §5-3), so a label is shown. */
 export function messageBody(m) {
+  if (m.cancelled) return S.cancelled; // cancelled: never the content (data-mapping §6.2)
   if (m.kind === 'photo') return S.photo;
   if (m.kind === 'sticker') return S.sticker;
   if (m.kind === 'other') return S.otherKind;

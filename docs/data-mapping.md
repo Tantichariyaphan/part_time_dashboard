@@ -3,13 +3,13 @@
 | Item | Value |
 |---|---|
 | Document status | CONTRACT DRAFT v0 — binding for implementation; entries marked UNCONFIRMED must not be implemented by guessing |
-| Written | 2026-10-03 |
+| Written | 2026-10-03; **updated 2026-10-07** (client builds the copy; Data Contract v1 — `docs/connection-spec.md` §0, §4) |
 | Source of Truth | `01_ข้อกำหนดหน้าจอจัดการ.md` = "ข้อกำหนด: หน้าจอจัดการ ฉบับ 2026-10-02 (ร่างที่ 5)" — cited below as **REQ §x** |
 | Supporting context | `02_ตัวอย่างทะเบียน_3สาขา.xlsx` (cited **SAMPLE-02**), `03_ตัวอย่างหน้าจอ.html` (cited **SAMPLE-03**) |
 | Withdrawn / must NOT be used | All documents sent on 9/30 (`エンジニアへ_現場AI巡回_20260930`, `送付一式_20260930` incl. 00–05) — REQ §0 |
 | Companion files | `docs/architecture.md`, `docs/connection-spec.md` (holds the Q-xx open-question register), `Claude.md` |
 
-> REQ is itself "ร่างที่ 5" (draft 5). If a newer version arrives, REQ wins over this file; update this file, do not "reconcile".
+> REQ is itself "ร่างที่ 5" (draft 5). If a newer version arrives, REQ wins over this file; update this file, do not "reconcile". The client's 2026-10-07 update (connection-spec §0) changes REQ on who builds the copy and fixes the copy layout (Data Contract v1).
 
 ---
 
@@ -34,11 +34,13 @@ Every field, state and rule below carries one of these labels. They are the only
 
 | Term | Thai (REQ) | Meaning |
 |---|---|---|
-| Source | บันทึกต้นทาง | The Bangkok spreadsheet the existing monitoring system (GAS) writes. PIATEC cannot access it directly |
-| Copy Process | กระบวนการคัดลอก | Built by PIATEC, installed on the Source side by the Client Developer; filters and copies only necessary data |
-| Read Copy | สำเนาสำหรับอ่าน | Filtered copy of 4 Source tabs, in client-named storage |
-| Screen Data | ข้อมูลสำหรับหน้าจอ / ทะเบียน | The 7-tab registry in REQ §5-3 (meta, stores, schedules, ทะเบียนรอบตรวจ, ทะเบียนคำถาม, บันทึกการส่ง, ทะเบียนข้อความ), built from Read Copy |
-| Heartbeat Sheet | สเปรดชีตสัญญาณชีพเครื่อง | Separate spreadsheet prepared by the client with tabs `beats`, `alerts`; read as-is |
+| Source / Original Records | บันทึกต้นทาง | The Bangkok spreadsheet the existing monitoring system (GAS) writes. **Never accessible to PIATEC** |
+| Copy Script (formerly "Copy Process") | กระบวนการคัดลอก | **Built and run by the client** (since 2026-10-07), every 5 minutes; filters and copies only permitted groups/columns |
+| View-only Copy (formerly "Read Copy") | สำเนาสำหรับอ่าน | Filtered copy of the 4 tabs + copy `meta` (Data Contract v1), in the client's account; PIATEC's reader account has view access |
+| Reader account | — | PIATEC's dedicated account with view access to exactly two files (View-only Copy, Heartbeat Spreadsheet); separate from dashboard login accounts |
+| Transform | — | PIATEC's step from the View-only Copy to Screen Data |
+| Screen Data / Dashboard Data / Ledger | ข้อมูลสำหรับหน้าจอ / ทะเบียน | The 7-tab registry in REQ §5-3 (meta, stores, schedules, ทะเบียนรอบตรวจ, ทะเบียนคำถาม, บันทึกการส่ง, ทะเบียนข้อความ), built from the View-only Copy, stored in the client's account |
+| Heartbeat Sheet / Machine Heartbeat Spreadsheet | สเปรดชีตสัญญาณชีพเครื่อง | Separate spreadsheet prepared by the client with tabs `beats`, `alerts`; read as-is with the reader account |
 | Dashboard | หน้าจอจัดการ | The 7 pages (REQ §6) |
 | Cache | แคช | Derived from Screen Data only, for speed (REQ §7-3) |
 | PIATEC / Client Developer / Client Acceptance Tester / Takatsuji / Maru | PIATEC / ผู้พัฒนาฝั่งผู้ว่าจ้าง / ผู้ตรวจรับฝั่งผู้ว่าจ้าง / คุณทาคัตสึจิ / คุณมารุ | Roles — see `docs/architecture.md` §2 |
@@ -48,51 +50,54 @@ Every field, state and rule below carries one of these labels. They are the only
 ## 1. Data flow
 
 ```text
-SOURCE (Bangkok spreadsheet; 4 tabs used: ログ, 送信ログ, AI質問追跡, 心拍)
-   │   PIATEC cannot access directly (REQ §2, §7-2)
-   │   Copy Process: built by PIATEC, INSTALLED by Client Developer; Maru approves once
-   ▼   filter at copy time: 5 groups, allowed recipients, allowed columns,
-   │   no userId / 宛先ID / 画像URL, no other tabs; surrogate keys replace IDs
-READ COPY (client-named storage)
-   │   keeps "last time source read completed" SEPARATE from "copy updated time" (REQ §5)
-   ▼   PIATEC build process (transform; idempotent; checkpoint/resume)
-SCREEN DATA (REQ §5-3 registry, 7 tabs, client-named storage)
-   │   + Heartbeat Sheet (beats, alerts) read as-is, prepared by client
+ORIGINAL RECORDS (Bangkok spreadsheet; 4 tabs used: ログ, 送信ログ, AI質問追跡, 心拍)
+   │   NEVER accessible to PIATEC (REQ §2, §7-2; client 10/7)
+   │   Copy Script: BUILT AND RUN BY THE CLIENT (since 2026-10-07), every 5 minutes
+   ▼   filter at copy time: 5 groups, five groups + OWNER as recipients, allowed columns,
+   │   no userId / 宛先ID / 画像URL, no other tabs; substitute keys 発言者キー / 宛先キー;
+   │   accounting/external-group lines in owner reports masked; rows from 2026-09-01;
+   │   row identity 元の行番号, updated in place, never twice
+VIEW-ONLY COPY (client account; Data Contract v1; PIATEC reader account = view only)
+   │   copy meta: last_read_at (records last read) SEPARATE from updated_at (copy last written)  [REQ §5; client 10/7]
+   ▼   PIATEC Transform (verify; idempotent rebuild proposed — connection-spec §8.3)
+SCREEN DATA / DASHBOARD DATA (REQ §5-3 registry, 7 tabs, client account)
+   │   + Machine Heartbeat Spreadsheet (beats, alerts) read as-is with the reader account
    ▼   (Cache derived from Screen Data only)
 SERVER-SIDE VIEWER CHECK (authentication + allowlist; no data to anyone not allowed)
    ▼
 DASHBOARD: 7 pages (display only; buttons = open / filter / back)
 
-End-to-end target: Source row added → shown on screen ≤ 10 minutes (whole path)   [REQ §5]
-Stopped-update detection: ≤ 20 minutes → red banner + notify Takatsuji once      [REQ §6, TV19, TV21]
+End-to-end target: new original row → shown on screen ≤ 10 minutes (whole path)   [REQ §5; client 10/7]
+Stopped-update detection: ≤ 20 minutes → red banner + notify the agreed contact once (Q-02, Q-47)   [REQ §6, TV19, TV21]
 ```
 
-Upstream-wins rule (REQ §7-3): regeneration order is Source → Read Copy → Screen Data → Cache. If numbers differ between layers, **the upstream layer is correct**. PIATEC must not hold data that exists only with PIATEC; copies, screen data, settings and process resume points live in **client-named storage**.
+Upstream-wins rule (REQ §7-3): regeneration order is Original Records → View-only Copy → Screen Data → Cache. If numbers differ between layers, **the upstream layer is correct**. PIATEC must not hold data that exists only with PIATEC; screen data, settings and process resume points live in **client-named storage**.
 
 ### 1.1 What each layer may contain
 
 | Layer | May contain | Must never contain |
 |---|---|---|
-| Read Copy | only the 4 tabs below; only groups MEAT・IN・ALL・MANAGEMENT・PHOTO; only allowed recipients; only allowed columns; surrogate keys | `userId`, `宛先ID`, `画像URL`, group LINK (`4846a3`), any group not in the table, any other tab (e.g. customer reservation names/phones), image bytes |
+| View-only Copy (client) | only the 4 tabs + copy `meta` (Data Contract v1, connection-spec §4.1); only groups MEAT・IN・ALL・MANAGEMENT・PHOTO; only the five groups and `OWNER` as recipients; only allowed columns; substitute keys `発言者キー` / `宛先キー` | `userId`, `宛先ID`, `画像URL`, group LINK (`4846a3`), any group not in the table, any other tab (e.g. customer reservation names/phones), image bytes |
 | Screen Data | columns in §5 (extra columns allowed but existing columns/meanings must not change — REQ §5-3) | image bodies (REQ §5-3 "ไม่เก็บตัวภาพในทะเบียน"), data absent upstream |
 | Dashboard | text rendered **as plain text** | HTML/script execution; writes; actions |
 
 ---
 
-## 2. Source tabs (REQ §5-1)
+## 2. Source tabs (REQ §5-1) — as they appear in the View-only Copy
 
-One spreadsheet for Bangkok, continuously written by the GAS that receives/sends LINE. Only these 4 tabs are copied.
+One spreadsheet for Bangkok, continuously written by the GAS that receives/sends LINE. Only these 4 tabs are copied, by the client's Copy Script. PIATEC sees them **only through the View-only Copy**, whose exact columns are Data Contract v1 (connection-spec §4.1): every tab starts with `元の行番号`; `ログ` adds `群` and `発言者キー` (no `userId`, `画像URL`); `送信ログ` adds `宛先の群` and `宛先キー` (no `宛先ID`) and names column 6 `返した元の発言`. The column tables below describe the original meaning (REQ §5-1).
 
 ### 2.1 `ログ` — one row = one LINE message received
 
-| Column | Meaning | Copy to Read Copy? |
+| Column | Meaning | In the View-only Copy? |
 |---|---|---|
 | `日時` | date-time | yes |
-| `グループID` | group ID. Group name = last 6 characters (§2.5) | allowed (it is in REQ's column table). Whether to keep the full ID or only the resolved group name/suffix: **UNCONFIRMED / ไม่ยืนยัน (Q-10)** |
+| `元の行番号` | original row number (row identity) | yes — added by the client (10/7) |
+| `グループID` | group ID. Group name = last 6 characters (§2.5) | yes — kept, together with `群` (resolved group name) (client 10/7; Q-10 closed) |
 | `発言者` | sender display name | yes (staff names — see §3 on external services) |
-| `userId` | LINE user ID | **NO — forbidden**; replace with surrogate key only if a person-match is needed |
+| `userId` | LINE user ID | **NO — forbidden**; replaced by `発言者キー` (substitute key, copy-only) |
 | `種別` | `text`・`image`・`sticker` etc. | yes |
-| `内容` | content; image = `[image]`, sticker = `[sticker]` | yes |
+| `内容` | content; image = `[image]`, sticker = `[sticker]` (sample also `[video]`, `[file]`) | yes (for `取消` rows: Q-17) |
 | `messageId` | message id | yes |
 | `画像URL` | image URL | **NO — forbidden** |
 | `再送` | "再送" if LINE re-sent | yes |
@@ -105,25 +110,27 @@ One spreadsheet for Bangkok, continuously written by the GAS that receives/sends
 | Column | Meaning | Copy? |
 |---|---|---|
 | `日時` | date-time | yes |
-| `宛先` | recipient name | yes (content for owner sends must be verified — Q-13) |
-| `宛先ID` | recipient ID | **NO — forbidden** (use surrogate key if needed) |
-| `文面` | message text | yes |
+| `元の行番号` | original row number (row identity; `結果` updated in place) | yes — added by the client (10/7) |
+| `宛先` | recipient name | yes |
+| `宛先の群` | recipient class: one of the five groups or `OWNER` | yes — added by the client (10/7; Q-13 closed) |
+| `宛先ID` | recipient ID | **NO — forbidden**; replaced by `宛先キー` (substitute key, copy-only) |
+| `文面` | message text | yes — owner-report lines quoting the accounting group or external groups are masked (client 10/7; format Q-51) |
 | `結果` | result; see §6 | yes |
-| column 6 (no header name given in REQ) | original message that the light check replied to, format `HH:MM|発言者` | yes |
+| `返した元の発言` (column 6) | original message that the reply answered, format `HH:MM|発言者` | yes — named in Data Contract v1 |
 
 ### 2.3 `AI質問追跡` — one row = one question from a patrol run that **was actually sent**
 
-`question_id` / `送信時刻` / `group` / `who` / `question_th` / `source_candidate_sha256` / `slot` (which run) / `state` (stays at default `waiting`).
+`元の行番号` (copy) / `question_id` / `送信時刻` / `group` / `who` / `question_th` / `source_candidate_sha256` / `slot` (which run) / `state` (stays at default `waiting`; updated in place by the copy if it changes). **No new rows since 10/6** because polling-loop questions are not yet written here (client fixing; Q-52).
 
 ### 2.4 `心拍` — one row = one GAS patrol check
 
-`時刻` / `読んだ行数` (rows read) / `候補数` (candidate count) / `送信MEAT` / `送信IN` / `結果` (free text) / `実行ms` / `gap分`.
+`元の行番号` (copy) / `時刻` / `読んだ行数` (rows read) / `候補数` (candidate count) / `送信MEAT` / `送信IN` / `結果` (free text; values such as `AI=scheduled-off` appear since the 10/5 change — meaning **UNCONFIRMED, Q-49**) / `実行ms` / `gap分`.
 
-### 2.5 Group ID → group name (REQ §5-1)
+### 2.5 Group ID → group name (REQ §5-1; applied by the client's Copy Script → `群`)
 
 Decided by the last 6 characters of `グループID`:
 
-| Suffix | Group | In Read Copy? |
+| Suffix | Group | In the View-only Copy? |
 |---|---|---|
 | `2c54ac` | MEAT | yes |
 | `c894fd` | IN | yes |
@@ -147,15 +154,17 @@ Decided by the last 6 characters of `グループID`:
 
 ---
 
-## 3. Sensitive data — never in Read Copy
+## 3. Sensitive data — never in the View-only Copy (and never carried by PIATEC)
 
 1. `userId`
 2. `宛先ID`
 3. `画像URL` (and image bodies)
 4. Messages/rows of group LINK and of any group outside §2.5
-5. Sends to recipients other than the five groups and owner/representative
+5. Sends to recipients other than the five groups and the owner (`宛先の群` = `OWNER`)
 6. Other tabs (e.g. customer reservation names and phone numbers)
-7. Any passwords/credentials of Maru (REQ §7-5: never received)
+7. Any passwords/credentials of Maru (REQ §7-5: never received); reading with Maru's account is not allowed (client 10/7)
+8. Substitute keys `発言者キー` / `宛先キー` are valid only inside the copy (same person → same key): PIATEC may use them for matching inside the Transform but never displays or exports them
+9. Owner-report lines quoting the accounting group or external groups are masked by the client (format Q-51)
 
 Related rules:
 - Registry contains staff names and local-language text (Thai, Burmese). **No external service may receive them**: translation API, analytics service, or feeding any AI (REQ §7-8). Registry text is used only for on-screen display.
@@ -163,18 +172,25 @@ Related rules:
 
 ---
 
-## 4. Read Copy — what REQ fixes and what it leaves open
+## 4. View-only Copy — fixed by the client on 2026-10-07 (Data Contract v1)
 
-REQ fixes: source tabs, filters, forbidden fields, surrogate-key principle, and the requirement to store **two separate timestamps**:
+REQ fixed the source tabs, filters, forbidden fields, substitute-key principle and **two separate timestamps**. The client's 10/7 update
+fixes the rest (CONFIRMED unless marked):
 
-| Timestamp (REQ §5, names not specified) | Meaning | Why |
+| Item | Value | Label |
 |---|---|---|
-| time the source read last completed | last success reading the Source | distinguish "0 messages" from "reading stopped" |
-| time the copy was updated | when the copy was last written | freshness of the copy |
+| Who builds / runs it | the client; every 5 minutes | CONFIRMED |
+| Columns | Data Contract v1 — connection-spec §4.1 | CONFIRMED |
+| Two timestamps | copy `meta.last_read_at` (Original Records last read) / `meta.updated_at` (copy last written) | CONFIRMED |
+| Other `meta` columns | `tab`, `source_rows`, `copied_rows`, `contract_version`, `status`, `detail` — allowed `status` values and row-count definitions | names CONFIRMED / meanings **Q-50** |
+| Row identity | `元の行番号` in every tab; later changes (`取消`, `結果`, `state`) update the row in place; never twice | CONFIRMED |
+| Range | rows from 2026-09-01 | CONFIRMED |
+| `グループID` | retained next to `群` | CONFIRMED |
+| Substitute keys | `発言者キー`, `宛先キー`; copy-only; stable per person | CONFIRMED (method is the client's) |
+| `内容` of a `取消` row | not stated | **UNCONFIRMED (Q-17)** — PIATEC never displays it |
+| Timestamp format | not stated (sample: `yyyy/MM/dd H:mm:ss`, no zone) | **UNCONFIRMED (Q-12)** |
 
-**UNCONFIRMED / ไม่ยืนยัน (Q-10):** the Read Copy's tab/column layout, names of the two timestamps, surrogate-key method (it must prevent recovering the original ID — implied by the prohibition), whether full `グループID` is retained, and whether original `内容` of a `取消` message is retained in Read Copy. These must be written into the connection spec and approved by the Client Developer. Do not invent them in code.
-
-Row identity for deduplication/checkpoint is also open: **Q-11**.
+Do not invent anything beyond this table in code.
 
 ---
 
@@ -197,7 +213,7 @@ One row per tab: `ทะเบียนรอบตรวจ` / `ทะเบี
 |---|---|---|
 | `tab` | tab name | REQ |
 | `generated_at` | when the registry was last regenerated | REQ; written by PIATEC build |
-| `last_success_at` | last successful source read | REQ; from Read Copy "source read completed" timestamp (DERIVED) |
+| `last_success_at` | last successful source read | REQ; from copy `meta.last_read_at` (CONFIRMED name 10/7; derivation DERIVED) |
 | `source_through` | records exist up to this time | REQ; rule to compute: UNCONFIRMED (Q-09) |
 | `status` | `ok` / `stale` / `error` | REQ values; criteria separating `stale` from `error`: UNCONFIRMED (Q-09) |
 | `detail` | reason for `stale` / `error` | REQ |
@@ -220,11 +236,13 @@ One row per tab: `ทะเบียนรอบตรวจ` / `ทะเบี
 | `active` | `yes` / `no` (paused) | REQ |
 
 `schedules` (history; one row = schedule for a period): `store` / `kind` (`slot` / `daily`) / `times` (comma-separated) / `valid_from` / `valid_to` (blank = still effective).
-Bangkok example (REQ): `12:00,22:00` until 2026-10-01; `12:00,17:00,22:00` from 2026-10-02. **The exact 17:00 start date is to be confirmed and sent by the client (UNCONFIRMED / ไม่ยืนยัน, Q-16).** Historical success rates use the schedule in force on that day.
+Bangkok (**CONFIRMED by the client 2026-10-07**, closes Q-16): slots `12:00,22:00` valid **2026-09-13 – 2026-10-01**; `12:00,17:00,22:00` from **2026-10-02** (first 17:00 run 10/2 17:00); daily `00:35`; `production_host` = **`snowmaru`**. Historical success rates use the schedule in force on that day. Rows before 2026-09-13 have no confirmed schedule (the copy starts 2026-09-01).
 
 ### 5.3 `ทะเบียนรอบตรวจ` (runs) — 1 row = one execution of one store
 
 Rule (REQ): **every scheduled patrol/daily must have exactly one row even if it did not run.** Built from `心拍` and `送信ログ` (REQ §5-1). The interpretation table for the free-text `心拍.結果` is to be **proposed by PIATEC from samples and confirmed by the client within 1 business day** — not yet existing → **UNCONFIRMED / ไม่ยืนยัน (Q-15)**.
+
+> **Source change (client 10/7):** since **2026-10-05 23:36** MEAT/IN questions and replies are sent by the **5-minute polling loop**; the 12:00/17:00/22:00 runs only record reads and decisions and send nothing to staff; `心拍.結果` shows values such as `AI=scheduled-off`. **The client will decide and announce how to read run status (Q-49).** Until then: no status is derived from `AI=scheduled-off`, and runs after 10/5 23:36 stay "ยังไม่ยืนยัน" where the record does not prove a status.
 
 | Column | Meaning | Provenance |
 |---|---|---|
@@ -269,7 +287,7 @@ Rules (REQ):
 
 | Column | Meaning | Provenance |
 |---|---|---|
-| `store`, `question_id`, `run_id`, `send_id` | store / unique question key / run that sent it (blank for light-check) / send-log row | `question_id` ← `AI質問追跡.question_id` (DERIVED). `run_id` from `slot` and `send_id` linking: UNCONFIRMED (Q-21) |
+| `store`, `question_id`, `run_id`, `send_id` | store / unique question key / run that sent it (blank for light-check) / send-log row | `question_id` ← `AI質問追跡.question_id` (DERIVED). `run_id` from `slot` and `send_id` linking: UNCONFIRMED (Q-21). **No new `AI質問追跡` rows since 10/6** (polling-loop questions; client fixing — Q-52) |
 | `sent_at`, `group`, `who` | send time / group / recipient display name | ← `送信時刻`, `group`, `who` (DERIVED) |
 | `question_text` | text as sent (local language kept) | ← `question_th` (DERIVED) |
 | `state` | §7.1 | `waiting`/`candidate` computable now; others need evidence |
@@ -281,18 +299,19 @@ Rules (REQ):
 
 | Column | Meaning | Provenance |
 |---|---|---|
-| `store`, `send_id`, `sent_at` | store / unique key / time | `sent_at` ← `送信ログ.日時`. **`send_id` has no source column** → UNCONFIRMED (Q-11) |
+| `store`, `send_id`, `sent_at` | store / unique key / time | `sent_at` ← `送信ログ.日時`. `send_id`: no source id column; PIATEC proposes an id from `送信ログ.元の行番号` (row identity CONFIRMED 10/7) → Q-11 PARTIAL |
 | `kind` | `question` / `reply` (light-check) / `daily` / `alert` | **no source column** → UNCONFIRMED (Q-14) |
-| `target_kind`, `target_label` | `group` / `owner` and recipient name | ← `宛先` + resolution rule: UNCONFIRMED (Q-13, Q-14) |
+| `target_kind`, `target_label` | `group` / `owner` and recipient name | ← `宛先の群` (`OWNER` → `owner`, five groups → `group`; CONFIRMED 10/7, Q-13 closed) and `宛先` |
 | `text` | message sent | ← `文面` |
-| `result` | `sent` / `unknown` / `failed` | §6 (CONFIRMED) |
+| `result` | `sent` / `unknown` / `failed` | §6 (CONFIRMED). Any other `結果` value → blank (unclassified, never a failure) — IMPLEMENTED |
+| `replies_to_message` *(optional, PIATEC)* | `yes` when `返した元の発言` is filled | IMPLEMENTED (copy connector); used only to count replies with unknown origin on ⑦; `kind` stays blank (Q-14) |
 
 ### 5.6 `ทะเบียนข้อความ` (messages) — 1 row = one staff message
 
 | Column | Meaning | Provenance |
 |---|---|---|
 | `store`, `message_id`, `at` | store / unique key / time | `message_id` ← `messageId`; `at` ← `日時` |
-| `group`, `sender` | group name / display name | ← §2.5 mapping; ← `発言者` |
+| `group`, `sender` | group name / display name | ← `群` (resolved by the client, §2.5); ← `発言者` |
 | `kind` | `text` / `photo` / `sticker` / `other` | ← `種別`: `text`→`text`, `image`→`photo`, `sticker`→`sticker`. Other values → `other` (implied; the full list of `種別` values is UNCONFIRMED, Q-12) |
 | `text` | content (local language kept). **Photo and sticker = blank** | ← `内容`; `[image]`/`[sticker]` placeholders are not copied into `text` (DERIVED) |
 | `handling` | §5.6.1 | partly UNCONFIRMED (Q-18) |
@@ -300,7 +319,8 @@ Rules (REQ):
 | `question_id`, `question_link` | if this message is (or may be) an answer to a Bot question: question key and `confirmed` / `candidate` (blank otherwise) | §7.2 |
 | `run_id`, `updated_at` | run that read this message (blank if none) / last update | REQ; message→run linking UNCONFIRMED (Q-21) |
 
-Cancellation has **no column** in the REQ §5-3 schema — see §6.2 and **Q-17**.
+Cancellation has **no column** in the REQ §5-3 schema — see §6.2 and **Q-17**. The copy connector adds an optional display-only
+column `cancelled` (`yes`) and blanks `text` (option A below, **proposed, not approved**); mock/demo data do not need it.
 
 #### 5.6.1 `handling` values
 
@@ -315,12 +335,12 @@ Cancellation has **no column** in the REQ §5-3 schema — see §6.2 and **Q-17*
 
 Link messages to answers **only by keys in the registry**. The Dashboard must never infer a link from text similarity (REQ §5-3).
 
-### 5.7 Heartbeat Sheet (prepared by client; read as-is; REQ §5-3, §5-4)
+### 5.7 Heartbeat Sheet (prepared by client; read as-is with the reader account; REQ §5-3, §5-4)
 
 `beats` (production/standby machines write one row every 5 minutes): `received_at`, `host`, `role` (`production`/`standby`), `stores` (comma-separated), `verify` (`PASS`/`FAIL`), `fail_items`, `chatgpt`, `drive`, `g_mounted` (true/false), `disk_free_gb`, `clock_offset_sec`, `text_patrol_at` (last light-check run).
 `alerts`: `at`, `kind` (`silent` = not responding / `recovered` / `fail`), `detail`.
 
-Availability: client prepares `beats`・`alerts` by **10/8** (REQ §5-4 #3). "Light-check operating time (not yet in any sheet)" is a known missing record (see §12). Until the sheet exists, anything depending on it is NOT CONNECTED / UNKNOWN, never normal.
+Availability: **ready** (client 10/7); view access is granted once PIATEC's reader account is known (Q-48). Production machine for Bangkok: `snowmaru`. "Light-check operating time (not yet in any sheet)" is a known missing record (see §12). Until the sheet exists, anything depending on it is NOT CONNECTED / UNKNOWN, never normal.
 
 ---
 
@@ -330,13 +350,16 @@ Availability: client prepares `beats`・`alerts` by **10/8** (REQ §5-4 #3). "Li
 
 - A message = a row of `ログ`.
 - Rows with `再送` ("re-sent by LINE") and rows sharing the same `messageId` collapse into **one** logical message.
+- In the copy each source row is one copy row (`元の行番号`). Sample 10/5: `再送` rows carry their **own** `messageId`, so "same `messageId`" alone does not tie a resend to its original → how resends are tied: **UNCONFIRMED (Q-17)**.
 - The rule for which duplicate row's `at`/`text` is kept is **UNCONFIRMED / ไม่ยืนยัน (Q-17)**.
 
 ### 6.2 Cancel
 
 - A row with `取消` is shown as "ข้อความถูกยกเลิก" **without content** (CONFIRMED).
 - A cancelled message is **never** a valid answer candidate (CONFIRMED — answers must be "ไม่ถูก取消").
+- The copy updates `取消` **in place** when a message is cancelled later (client 10/7). Whether the copy keeps the cancelled `内容` is not stated (Q-17).
 - **UNCONFIRMED / ไม่ยืนยัน (Q-17):** REQ §5-3 has no cancel column in `ทะเบียนข้อความ`. §5-3 allows adding columns without changing existing ones; the representation must be approved via Takatsuji. Proposed options for the Q-17 decision: (A) add a column (e.g. `cancelled`) and blank `text` — recommended; (B) encode via existing columns — not recommended because `kind` has no cancelled value. Until decided: do not display the content of any row whose `取消` is set. If cancel arrives after the message was already copied, the displayed content must be removed on the next rebuild.
+  **IMPLEMENTED (copy connector, synthetic tests):** rebuild on each read removes the content; ③ shows "メッセージは取り消されました"; a cancel on any row sharing the `messageId` hides the content.
 
 ### 6.3 Send result (CONFIRMED, REQ §5-1 and §5-3)
 
@@ -385,7 +408,7 @@ When Screen Data is rebuilt, question state and answers must **not return to def
 
 ## 8. Bot-reply matching (CONFIRMED, REQ §5-1)
 
-Inputs: `送信ログ` column 6 `HH:MM|発言者` (original message the light check replied to) and `ログ`.
+Inputs: `送信ログ.返した元の発言` ("column 6", `HH:MM|発言者`; named in Data Contract v1) and `ログ`. Since 10/5 23:36 these replies come from the 5-minute polling loop (Q-49 for how they relate to runs).
 
 ```text
 For a 送信ログ row whose column 6 is non-empty:
@@ -403,6 +426,11 @@ Rules:
 - Only `link=confirmed` AND `result=sent` makes `handling=replied`.
 - Display (REQ §6-③): Bot replies appear **immediately under the original message**, in `at` order ("กี่นาทีต่อมา・ตรวจแบบเบา/รอบตรวจ・ข้อความ"); `result` not `sent` → label "ยังไม่ยืนยันการส่ง" or "ส่งล้มเหลว".
 
+**As implemented in the copy connector (conservative reading while Q-19 / Q-12 are open):** a link is `confirmed` only when the
+calendar-day reading and the business-day reading give the same single message, the column-6 `HH:MM` is read in the configured copy
+time zone (`NIKUSHO_COPY_TIMEZONE`; without it nothing is confirmed), and that message is not later than the send. Two or more
+candidates → `ambiguous`, attached to no message. Every reply that is not confirmed counts as "unknown origin" on ⑦.
+
 **UNCONFIRMED / ไม่ยืนยัน (Q-19):** behaviour when zero messages match; the meaning of "same day" (calendar vs business day, matters around midnight); where an `ambiguous` reply is stored (SAMPLE-02 `DUMMY-m-005` stores an `ambiguous` reply inside one message row, which conflicts with "cannot tell which message"); `by=heavy` (patrol-run replies) matching source — no column identified.
 
 ---
@@ -419,7 +447,9 @@ Rules:
 | Timezone used to *display* clock times (Bangkok store vs Tokyo store) | not stated | UNCONFIRMED (Q-12) |
 | End-to-end latency | ≤ **10 minutes** Source row → screen | CONFIRMED (REQ §5; TV9, 3 consecutive days) |
 | Test registry change → screen | ≤ **5 minutes** (TV2, type B) | CONFIRMED |
-| Stopped-update detection | ≤ **20 minutes**; screen shows "หยุดอัปเดต" and notifies Takatsuji once | CONFIRMED (TV19, TV21) |
+| Stopped-update detection | ≤ **20 minutes**; screen shows "หยุดอัปเดต" and notifies the agreed contact once (Q-02, Q-47) | CONFIRMED (TV19, TV21) |
+| Copy refresh | client Copy Script every **5 minutes** | CONFIRMED (client 10/7) |
+| Copy range | rows from **2026-09-01** (⑦ can look back to that date) | CONFIRMED (client 10/7) |
 | Screen performance | page shows within **3 seconds** (TV4, TV17) | CONFIRMED |
 
 ### 9.1 Update banner (top of every page; REQ §6)
@@ -571,4 +601,4 @@ Additional gaps found by cross-check (not client-confirmed; candidates for the m
 
 ## 14. Open-question index for this file
 
-Q-09 to Q-30 (data-level questions; Q-01 to Q-08 cover platform, authentication, notification and timeline and are used by `docs/architecture.md`) — full register with owner, due date and safe default in `docs/connection-spec.md` §12.
+Q-09 to Q-30 (data-level questions; Q-01 to Q-08 cover platform, authentication, notification and timeline and are used by `docs/architecture.md`) — full register with owner, due date and safe default in `docs/connection-spec.md` §12. Status after the client's 2026-10-07 update and new questions Q-47 … Q-53 (contact route, reader account, run-status reading, copy `meta`, masked lines, `AI質問追跡` gap, TV18 split): `docs/connection-spec.md` §12.1.

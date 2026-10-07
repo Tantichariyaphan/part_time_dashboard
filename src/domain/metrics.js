@@ -5,8 +5,10 @@
 //    candidates are NOT counted; with no confirmation records the rate is "not concluded" - never 0%
 //  - time to answer = median of (first confirmed answer - sent_at); candidates only -> "not concluded"
 //  - DUMMY- rows are excluded from every real summary
+//  - runStatusUnconfirmed (source cannot prove run status, Q-49): rates are "unconfirmed", never a number
+//  - questionsIncompleteFromMs (question records incomplete from that instant, Q-52): the question count is flagged incomplete
 import { businessDayOf, businessDayWindow, parseMs, recentDays } from './time.js';
-import { dayRuns, IN_PROGRESS, SUCCESS } from './runs.js';
+import { dayRuns, IN_PROGRESS, NOT_JUDGED, SUCCESS } from './runs.js';
 import { scopeOf } from './schedules.js';
 import { readAnswers } from './questions.js';
 import { messageRow, readReplies } from './messages.js';
@@ -22,7 +24,7 @@ function median(nums) {
 
 const rate = (num, den) => (den === 0 ? { state: 'none' } : { state: 'value', value: num / den, numerator: num, denominator: den });
 
-export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, days }) {
+export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, days, runStatusUnconfirmed = false, questionsIncompleteFromMs = null }) {
   const scope = scopeOf(store);
   const dayList = recentDays(currentDay, days); // newest first
   const runs = real(data.runs, isDummyRun);
@@ -34,10 +36,10 @@ export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, d
   const tally = { slot: { ok: 0, den: 0 }, daily: { ok: 0, den: 0 }, missing: 0, blocked: 0, unknown: 0 };
   let unconfirmedSchedule = false;
   for (const day of dayList) {
-    const { items, unconfirmedSchedule: u } = dayRuns({ store, schedules: data.schedules, runs, day, now, currentDay });
+    const { items, unconfirmedSchedule: u } = dayRuns({ store, schedules: data.schedules, runs, day, now, currentDay, statusUnconfirmed: runStatusUnconfirmed });
     if (u.slot || u.daily) unconfirmedSchedule = true;
     for (const it of items) {
-      if (IN_PROGRESS.has(it.status)) continue;
+      if (IN_PROGRESS.has(it.status) || NOT_JUDGED.has(it.status)) continue;
       const t = tally[it.kind];
       if (t) { t.den += 1; if (SUCCESS.has(it.status)) t.ok += 1; }
       if (it.status === 'missing' || it.status === 'no_row') tally.missing += 1;
@@ -87,16 +89,18 @@ export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, d
   const botReplies = msgRows.filter((m) => m.flags.replied).length;
   const confirmedSendIds = new Set();
   for (const m of messages) for (const r of readReplies(m).replies) if (r.link === 'confirmed' && r.send_id) confirmedSendIds.add(r.send_id);
-  const unknownOrigin = sends.filter((s) => s.kind === 'reply' && inWindow(s.sent_at) && !confirmedSendIds.has(s.send_id)).length;
+  const unknownOrigin = sends.filter((s) => (s.kind === 'reply' || s.replies_to_message === 'yes') && inWindow(s.sent_at) && !confirmedSendIds.has(s.send_id)).length;
 
   return {
     days,
     scope,
     unconfirmedSchedule,
-    patrolRate: scope.slot ? rate(tally.slot.ok, tally.slot.den) : { state: 'none' },
-    dailyRate: scope.daily ? rate(tally.daily.ok, tally.daily.den) : { state: 'none' },
+    runStatusUnconfirmed,
+    patrolRate: !scope.slot ? { state: 'none' } : runStatusUnconfirmed ? { state: 'unconfirmed' } : rate(tally.slot.ok, tally.slot.den),
+    dailyRate: !scope.daily ? { state: 'none' } : runStatusUnconfirmed ? { state: 'unconfirmed' } : rate(tally.daily.ok, tally.daily.den),
     stopped: { missing: tally.missing, blocked: tally.blocked, unknown: tally.unknown },
     questionsSent: qs.length,
+    questionsIncomplete: questionsIncompleteFromMs != null && now > questionsIncompleteFromMs,
     responseRate,
     timeToAnswer,
     answersUnreadable: unreadable,

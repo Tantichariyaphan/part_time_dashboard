@@ -38,6 +38,8 @@ export const BEAT_VERIFY = Object.freeze(['PASS', 'FAIL']);
 export const ALERT_KIND = Object.freeze(['silent', 'recovered', 'fail']);
 export const OWNER_NOTIFIED = Object.freeze(['yes', 'no']);
 export const ACTIVE = Object.freeze(['yes', 'no']);
+/** Value of the optional yes-only marker columns (columns.js OPTIONAL_COLUMNS: messages.cancelled, sends.replies_to_message). */
+export const MARK_YES = Object.freeze(['yes']);
 
 /** Data-level evidence labels (docs/data-mapping.md §0.1). */
 export const EVIDENCE = Object.freeze({
@@ -47,7 +49,7 @@ export const EVIDENCE = Object.freeze({
   NOT_CONNECTED: 'NOT_CONNECTED',
 });
 
-/** Groups allowed in Read Copy (REQ §5-1). Informational: filtering happens in the (future) Copy Process. */
+/** Groups allowed in the View-only Copy (REQ §5-1). Filtering is done by the client's Copy Script (since 2026-10-07); PIATEC verifies, it never filters the Original Records. */
 export const ALLOWED_GROUPS = Object.freeze(['MEAT', 'IN', 'ALL', 'MANAGEMENT', 'PHOTO']);
 
 export const CONTRACT_VERSION = 'v1';

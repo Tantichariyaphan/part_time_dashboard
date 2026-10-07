@@ -48,7 +48,8 @@ export function messageRow(m) {
     group: m.group,
     sender: m.sender,
     kind: m.kind,
-    text: m.text,
+    text: m.cancelled === 'yes' ? null : m.text, // cancelled: content never shown (data-mapping §6.2; Q-17)
+    cancelled: m.cancelled === 'yes',
     handling,
     repliesOk: ok,
     replies: replies.map((r) => ({ ...r, minutesAfter: Math.max(0, Math.floor((r.atMs - parseMs(m.at)) / 60000)) })),

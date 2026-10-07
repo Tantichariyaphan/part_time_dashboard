@@ -20,6 +20,36 @@ export function buildContext(adapterResult) {
     validation,
     freshness,
     connection: adapterResult.storeConnection ?? {},
+    limits: adapterResult.limits ?? {},
+    sources: adapterResult.sources ?? null,
+  };
+}
+
+/** Run status cannot be read from the source yet (copy adapter, Q-49): runs are listed, never judged. */
+export const runStatusUnconfirmed = (ctx) => ctx.limits?.runStatus === 'UNCONFIRMED';
+/** Instant from which question records are known to be incomplete (copy adapter, Q-52), or null. */
+export const questionsIncompleteFromMs = (ctx) => {
+  const ms = Date.parse(ctx.limits?.questionsIncompleteFrom ?? '');
+  return Number.isFinite(ms) ? ms : null;
+};
+
+/** Source connection states for the UI: states, reason codes, counts and row numbers only (no ids, no cell values). */
+export function publicSources(ctx) {
+  if (!ctx.sources) return null;
+  const tabs = (list) => (list ?? []).map((t) => ({ tab: t.tab, state: t.state, rows: t.rows ?? null, findingCount: t.findingCount ?? 0,
+    findings: (t.findings ?? []).map((f) => ({ row: f.row ?? null, column: f.column ?? null, problem: f.problem })), used: t.used ?? null }));
+  const c = ctx.sources.copy ?? {};
+  const h = ctx.sources.heartbeat ?? {};
+  return {
+    copy: {
+      state: c.state ?? 'NOT_CONNECTED', reason: c.reason ?? null, readAt: c.readAt ?? null,
+      tabs: tabs(c.metaTab ? [...(c.tabs ?? []), c.metaTab] : c.tabs),
+      copyFindingCount: c.copyFindingCount ?? 0, copyFindings: (c.copyFindings ?? []).map((f) => ({ problem: f.problem })),
+      replyLinks: c.replyLinks ?? null, unclassified: c.unclassified ?? null, collapsedMessageRows: c.collapsedMessageRows ?? null,
+    },
+    heartbeat: { state: h.state ?? 'NOT_CONNECTED', reason: h.reason ?? null, readAt: h.readAt ?? null, tabs: tabs(h.tabs) },
+    runStatus: ctx.limits?.runStatus ?? null,
+    questionsIncompleteFrom: ctx.limits?.questionsIncompleteFrom ?? null,
   };
 }
 

@@ -31,6 +31,19 @@ export const COLUMNS = Object.freeze({
   alerts: ['at', 'kind', 'detail'],
 });
 
+/**
+ * Optional columns: carried when an adapter supplies them, never required (a missing optional column is not a
+ * "required column missing"). REQ §5-3 allows adding columns without changing existing ones.
+ *   messages.cancelled = 'yes' when the copy row is marked 取消 - display-only marker so the screen can show
+ *   "cancelled" without content. Its representation in the client's ledger is Q-17 (option A, proposed, not approved).
+ *   sends.replies_to_message = 'yes' when `送信ログ.返した元の発言` (column 6) is filled: the send is a Bot reply to a
+ *   message. Used only to count replies whose origin message is unknown (REQ §6-⑦); `kind` stays blank (Q-14).
+ */
+export const OPTIONAL_COLUMNS = Object.freeze({
+  messages: ['cancelled'],
+  sends: ['replies_to_message'],
+});
+
 /** Columns that hold counts / numbers. Blank (null) means "not pulled"; 0 means zero (REQ §6). */
 export const NUMERIC_COLUMNS = Object.freeze({
   stores: ['slot_deadline_min', 'daily_deadline_min'],
@@ -63,8 +76,8 @@ export const ENUM_COLUMNS = Object.freeze({
   schedules: { kind: E.RUN_KIND },
   runs: { kind: E.RUN_KIND, status: E.RUN_STATUS, owner_notified: E.OWNER_NOTIFIED },
   questions: { state: E.QUESTION_STATE, closed_reason: E.CLOSED_REASON },
-  sends: { kind: E.SEND_KIND, target_kind: E.TARGET_KIND, result: E.SEND_RESULT },
-  messages: { kind: E.MESSAGE_KIND, handling: E.HANDLING, question_link: E.QUESTION_LINK },
+  sends: { kind: E.SEND_KIND, target_kind: E.TARGET_KIND, result: E.SEND_RESULT, replies_to_message: E.MARK_YES },
+  messages: { kind: E.MESSAGE_KIND, handling: E.HANDLING, question_link: E.QUESTION_LINK, cancelled: E.MARK_YES },
   beats: { role: E.BEAT_ROLE, verify: E.BEAT_VERIFY },
   alerts: { kind: E.ALERT_KIND },
 });

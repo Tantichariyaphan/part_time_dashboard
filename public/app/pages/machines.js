@@ -36,9 +36,28 @@ function Machine(m, intervalMin) {
         hhmm(b.received_at), b.verify === 'FAIL' && ' FAIL'))));
 }
 
+/** The client's two files as this server sees them (copy adapter only): states, codes, counts, row numbers. No values. */
+function Sources(src) {
+  const T = S.sources;
+  const tabRow = (t) => h('div', { class: 'row-top small' }, h('span', null, t.tab),
+    StatusBadge(t.state === 'ok' ? 'tone-ok' : 'tone-blocked', T.tabState[t.state] ?? t.state, { compact: true }),
+    t.rows != null && h('span', { class: 'muted' }, T.rows(t.rows)),
+    t.used === 'validated_only' && h('span', { class: 'muted' }, T.validatedOnly),
+    t.findingCount > 0 && h('span', null, `${T.findings(t.findingCount)}：${t.findings.map((f) => `${f.row ? `${T.row} ${f.row} ` : ''}${f.column ?? ''} ${f.problem}`).join('、')}`));
+  const part = (label, s) => h('div', { class: 'row' },
+    h('div', { class: 'row-top' }, h('b', null, label),
+      s.state === 'NOT_CONNECTED' ? EvidenceBadge('NOT_CONNECTED') : StatusBadge(s.state === 'CONNECTED' ? 'tone-ok' : 'tone-blocked', T.state[s.state] ?? s.state, { compact: true }),
+      s.reason && h('span', { class: 'small muted' }, s.reason)),
+    s.readAt && h('div', { class: 'small muted' }, `${T.readAt} ${mdhm(s.readAt)}`),
+    (s.tabs ?? []).map(tabRow),
+    s.replyLinks && h('div', { class: 'small muted' }, T.replies(s.replyLinks.confirmed, s.replyLinks.ambiguous, s.replyLinks.unlinked)));
+  return Card({ title: T.title }, h('div', { class: 'rows' }, part(T.copy, src.copy), part(T.heartbeat, src.heartbeat)));
+}
+
 export function view(env) {
   const d = env.data;
   return h('div', { class: 'stack' },
+    d.sources && Sources(d.sources),
     Card({ title: S.machines.updates },
       DataTable({
         variant: 'left',

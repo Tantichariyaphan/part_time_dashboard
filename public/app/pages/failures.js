@@ -19,9 +19,9 @@ export function view(env, ctx) {
   const t = d.totals;
   return h('div', { class: 'stack' },
     h('div', { class: 'small muted' }, S.failures.days(d.days)),
-    Metrics(
-      MetricCard(S.failures.missing, `${t.missing}`), MetricCard(S.failures.blocked, `${t.blocked}`),
-      MetricCard(S.failures.late, `${t.late}`), MetricCard(S.failures.unknown, `${t.unknown}`)),
+    d.runStatusUnconfirmed && AlertCard(null, S.runStatusUnconfirmed, 'warn'),
+    Metrics(...[[S.failures.missing, t.missing], [S.failures.blocked, t.blocked], [S.failures.late, t.late], [S.failures.unknown, t.unknown]]
+      .map(([label, n]) => MetricCard(label, d.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${n}`))), // not judged (Q-49) is not "0"
     Card({ title: `${S.pages.failures.title}` },
       d.items.length ? h('div', { class: 'rows' }, d.items.map((r) => {
         const key = `f:${r.store}:${r.key}`;
@@ -37,8 +37,9 @@ export function view(env, ctx) {
             r.onTodayPage && h('a', { href: href.today(r.store) }, S.link.toToday),
             h('a', { href: href.messages(r.store, r.businessDay) }, S.link.toMessages)),
           open && h('div', { class: 'detail' }, runValues(r), r.run_id && h('div', { class: 'small muted' }, `${S.detail.runId}：${r.run_id}`)));
-      })) : EmptyState(S.failures.none)),
+      })) : EmptyState(d.runStatusUnconfirmed ? S.run.unconfirmed : S.failures.none)),
     Card({ title: S.failures.sends },
+      d.unclassifiedSends > 0 && h('div', { class: 'small muted' }, S.failures.unclassifiedSends(d.unclassifiedSends)),
       d.sendProblems.length ? h('div', { class: 'rows' }, d.sendProblems.map((s) => h('div', { class: 'row' },
         h('div', { class: 'row-top' }, h('span', { class: 't' }, mdhm(s.sent_at)), h('span', null, S.sendKind[s.kind] ?? S.unknown), h('span', null, `→ ${s.target_label ?? ''}`),
           StatusBadge(sendTone(s.result), S.sendResult[s.result] ?? S.unknown, { compact: true })),

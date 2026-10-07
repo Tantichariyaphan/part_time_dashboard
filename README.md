@@ -1,13 +1,13 @@
 # NIKUSHO AI Monitoring System — Dashboard skeleton
 
 **Not production.** This milestone is the Dashboard skeleton, the Screen Data contract, a mock/demo adapter and a read-only API boundary.
-The real Source is not connected. The project contract is in `Claude.md` and `docs/`; deviations and open questions are in `docs/implementation-notes.md`.
+No real data is connected. Since **2026-10-07 the client builds and runs the Copy Script**; PIATEC reads only the client's View-only Copy and the Machine Heartbeat Spreadsheet with a dedicated reader account and never the Original Records. The connector for those two files is built (`NIKUSHO_LIVE_ADAPTER=copy`, tested on synthetic data) but stays **NOT_CONNECTED** until the reader account exists (Q-48). The project contract is in `Claude.md` and `docs/` (`docs/connection-spec.md` §0 for the 10/7 update); deviations and open questions are in `docs/implementation-notes.md`. `parttimedashboard.vercel.app` is prototype hosting only.
 
 ## Run (Node.js >= 22; no dependencies)
 
 ```
 npm install        # no packages are installed; it only checks the environment and writes package-lock.json
-npm test           # node --test "tests/*.test.js"   (135 tests)
+npm test           # node --test "tests/*.test.js"   (178 tests)
 npm start          # node server/index.js
 ```
 
@@ -16,6 +16,10 @@ npm start          # node server/index.js
 * Defaults: `HOST=127.0.0.1`, `PORT=3000`. The dev gate accepts loopback only; open the URL printed at start-up.
 * Another port: `PORT=3001 npm start` (macOS/Linux) or `$env:PORT=3001; npm start` (Windows PowerShell).
 * Mock scenario (live entry only): `NIKUSHO_DEV_SCENARIO=full|phase1|stale-messages|stopped|error|machine-down`; no live data at all: `NIKUSHO_LIVE_ADAPTER=none`.
+* Client's View-only Copy (real data): `NIKUSHO_LIVE_ADAPTER=copy` with `NIKUSHO_AUTH=google` (refused behind the dev gate) and the
+  server-side variables in `docs/implementation-notes.md` §8.3 (`NIKUSHO_COPY_SPREADSHEET_ID`, `NIKUSHO_HEARTBEAT_SPREADSHEET_ID`,
+  `NIKUSHO_COPY_STORE`, `NIKUSHO_STORES_JSON`, optional `NIKUSHO_COPY_TIMEZONE`). Today both files show **NOT_CONNECTED** on ⑥:
+  the reader account and its token source do not exist yet (Q-48).
 * `npm run demo:snapshot` regenerates `src/adapters/demo/demoScreenData.json` (not needed to run).
 
 ## Viewer check (authentication / authorization)
@@ -34,7 +38,8 @@ npm start          # node server/index.js
 src/contract/    exact tab names, columns, enumerations (REQ §5-3)
 src/normalize/   raw tab -> Screen Data (blank stays blank), validation (never repairs)
 src/domain/      all business rules (time, runs, freshness, questions, messages, production, metrics)
-src/adapters/    mock (dev), demo (fixed snapshot), none   <- the only part the real pipeline replaces
+src/adapters/    mock (dev), demo (fixed snapshot), none, copy (client's View-only Copy: contract check + Transform)
+server/source/   reader of the client's two spreadsheets (GET only, ids from server config) and the source configuration
 src/viewmodels/  Screen Data -> page data
 server/          read-only API (GET/HEAD), viewer check (server/auth: dev gate | Google + allowlist prototype), static files
 config/          allowlist.example.json (placeholders; the real allowlist.json is git-ignored)

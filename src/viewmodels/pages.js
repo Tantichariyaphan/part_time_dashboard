@@ -1,6 +1,6 @@
 // View models for the 7 pages (REQ §6). Pure functions: (ctx, params) -> plain JSON for the read-only API.
 // All business rules live in src/domain; the UI only renders what is returned here.
-import { activeStores, connectionOf, currentDay, findStore, publicFreshness, sourceThroughOf } from './context.js';
+import { activeStores, connectionOf, currentDay, findStore, publicFreshness, publicSources, questionsIncompleteFromMs, runStatusUnconfirmed, sourceThroughOf } from './context.js';
 import { storeCapability } from '../domain/capability.js';
 import { dayRuns, effectiveRunStatus } from '../domain/runs.js';
 import { countWithCoverage, dayCoverage } from '../domain/freshness.js';
@@ -23,6 +23,8 @@ function storeOrThrow(ctx, id) {
   if (!store) throw new NotFound(`unknown store: ${id}`);
   return store;
 }
+
+const questionsIncompleteNow = (ctx) => { const from = questionsIncompleteFromMs(ctx); return from != null && ctx.now > from; };
 
 const questionsOf = (ctx, store) => ctx.screen.questions.filter((q) => q.store === store.store);
 
@@ -111,6 +113,7 @@ export function entryInfo(ctx, entry) {
   return {
     entry,
     adapterKind: ctx.adapterKind,
+    sources: publicSources(ctx),
     stores: ctx.screen.stores.map((s) => ({
       store: s.store, display_name: s.display_name, active: s.active === 'yes', connection: connectionOf(ctx, s),
     })),
@@ -127,8 +130,8 @@ export function allStores(ctx) {
     if (conn !== 'connected') return base;
 
     const day = currentDay(ctx, store);
-    const { items, unconfirmedSchedule } = dayRuns({
-      store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: day,
+    const { items, unconfirmedSchedule, unconfirmedStatus } = dayRuns({
+      store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: day, statusUnconfirmed: runStatusUnconfirmed(ctx),
     });
     const scope = scopeOf(store);
     const ofKind = (kind) => items.filter((i) => i.kind === kind).sort((a, b) => a.scheduledMs - b.scheduledMs)
@@ -146,10 +149,11 @@ export function allStores(ctx) {
     return {
       ...base,
       businessDay: day,
-      patrol: scope.slot ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.slot, items: unconfirmedSchedule.slot ? [] : ofKind('slot') } : { scope: 'out_of_scope' },
-      daily: scope.daily ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.daily, items: unconfirmedSchedule.daily ? [] : ofKind('daily') } : { scope: 'out_of_scope' },
+      patrol: scope.slot ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.slot, unconfirmedStatus, items: unconfirmedSchedule.slot ? [] : ofKind('slot') } : { scope: 'out_of_scope' },
+      daily: scope.daily ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.daily, unconfirmedStatus, items: unconfirmedSchedule.daily ? [] : ofKind('daily') } : { scope: 'out_of_scope' },
       questionsToday: asked.length ? { state: 'value', value: asked.reduce((s, v) => s + v, 0) } : { state: 'unpulled' },
       waitingQuestions: waiting, // all days, waiting + candidate (REQ §6-①)
+      questionsIncomplete: questionsIncompleteNow(ctx), // question records known to be incomplete (Q-52): the count is a lower bound
       messagesToday: countWithCoverage(todays.length, cov),
       botRepliesToday: countWithCoverage(todays.filter((m) => m.flags.replied).length, cov),
       machine: summarizeMachine(storeMachine(store, ctx.screen.beats, ctx.now)),
@@ -171,8 +175,8 @@ export function today(ctx, storeId) {
   const day = currentDay(ctx, store);
   const dataRuns = real(ctx.screen.runs, isDummyRun);
   const mk = (d, label) => {
-    const { items, unconfirmedSchedule } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day: d, now: ctx.now, currentDay: day });
-    return { label, businessDay: d, unconfirmedSchedule, items: items.map(runRow) };
+    const { items, unconfirmedSchedule, unconfirmedStatus } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day: d, now: ctx.now, currentDay: day, statusUnconfirmed: runStatusUnconfirmed(ctx) });
+    return { label, businessDay: d, unconfirmedSchedule, unconfirmedStatus, items: items.map(runRow) };
   };
   return {
     store: store.store, display_name: store.display_name, connection: 'connected', scope: scopeOf(store),
@@ -241,6 +245,7 @@ export function questions(ctx, storeId) {
   return {
     store: store.store, display_name: store.display_name, connection: 'connected',
     answerEvidence: cap.answers, // CONFIRMED | CANDIDATE | UNKNOWN
+    incompleteFrom: questionsIncompleteNow(ctx) ? formatIso(questionsIncompleteFromMs(ctx)) : null, // Q-52
     counts: { all: qs.length, waiting: count('waiting'), answered: count('answered'), closed: count('closed') },
     items: qs,
   };
@@ -258,7 +263,7 @@ export function failures(ctx) {
   for (const store of connected) {
     const cur = currentDay(ctx, store);
     for (const day of recentDays(cur, RECENT_FAILURE_DAYS)) {
-      const { items: its } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: cur });
+      const { items: its } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: cur, statusUnconfirmed: runStatusUnconfirmed(ctx) });
       for (const it of its) {
         if (!PROBLEM.has(it.status)) continue;
         items.push({ ...runRow(it), store: store.store, display_name: store.display_name, businessDay: day, onTodayPage: onTodayPage(ctx, store, day) });
@@ -278,6 +283,8 @@ export function failures(ctx) {
     });
   return {
     days: RECENT_FAILURE_DAYS, totals, items, sendProblems,
+    runStatusUnconfirmed: runStatusUnconfirmed(ctx), // runs are not judged at all (Q-49): an empty list is not "no failures"
+    unclassifiedSends: real(ctx.screen.sends, isDummySend).filter((s) => connected.some((c) => c.store === s.store) && s.result === null && parseMs(s.sent_at) >= windowStart).length,
     notConnected: stores.filter((s) => connectionOf(ctx, s) !== 'connected').map((s) => ({ store: s.store, display_name: s.display_name })),
   };
 }
@@ -294,6 +301,7 @@ export function machines(ctx) {
       generated_at: t.generated_at, generatedAgeMin: t.generatedAgeMin, normal: t.normal,
     })),
     heartbeatSheet: beats == null ? 'not_connected' : 'connected',
+    sources: publicSources(ctx), // copy / heartbeat connection and contract-check state (copy adapter only)
     beatIntervalMin: HEARTBEAT_WRITE_INTERVAL_MINUTES, // machines write one row every 5 min (REQ §5-3): shown as information, not judged
     machines: latest == null ? [] : latest.filter(Boolean).map((b) => ({ ...machineView(b, ctx.now), recent: recentBeats(beats, b, ctx.now) }))
       .sort((a, b) => (a.role === 'production' ? -1 : 1) - (b.role === 'production' ? -1 : 1)),
@@ -327,6 +335,7 @@ export function periods(ctx, daysParam) {
         ...base,
         metrics: periodMetrics({
           store, data: ctx.screen, now: ctx.now, currentDay: day, sourceThroughMs: sourceThroughOf(ctx, 'messages'), days,
+          runStatusUnconfirmed: runStatusUnconfirmed(ctx), questionsIncompleteFromMs: questionsIncompleteFromMs(ctx),
         }),
       };
     }),

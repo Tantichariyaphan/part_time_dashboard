@@ -18,6 +18,7 @@ export const load = ({ query }) => api('periods', { days: query.get('days') ?? '
 const NC = () => h('span', { class: 'muted' }, S.notConnected);
 
 function rateCell(r) {
+  if (r.state === 'unconfirmed') return S.periods.rateUnconfirmed; // run status not judged (Q-49) - never a number
   if (r.state === 'value') return h('span', null, pct(r.value), h('span', { class: 'sub' }, `${r.numerator}/${r.denominator}`));
   return S.none; // denominator 0 / out of scope -> "no qualifying items" (never 0%)
 }
@@ -45,14 +46,15 @@ export function view(env, ctx) {
   return h('div', { class: 'stack' },
     Chips([['7', S.periods.d7], ['30', S.periods.d30]], String(d.days), (k) => ctx.go('periods', { days: k, store: ctx.store })),
     connected.some((s) => s.metrics.unconfirmedSchedule) && AlertCard(null, S.periods.unconfirmedSchedule, 'warn'),
+    connected.some((s) => s.metrics.runStatusUnconfirmed) && AlertCard(null, S.runStatusUnconfirmed, 'warn'),
     Card({ title: S.pages.periods.title, sub: `${d.days === 7 ? S.periods.d7 : S.periods.d30}` },
       DataTable({
         columns: ['', ...stores.map((s) => s.display_name)],
         rows: [
           [S.periods.patrolRate, ...col((m) => rateCell(m.patrolRate))],
           [S.periods.dailyRate, ...col((m) => rateCell(m.dailyRate))],
-          [S.periods.stopped, ...col((m) => `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`)],
-          [S.periods.questions, ...col((m) => `${m.questionsSent}`)],
+          [S.periods.stopped, ...col((m) => (m.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`))],
+          [S.periods.questions, ...col((m) => h('span', null, `${m.questionsSent}`, m.questionsIncomplete && h('span', { class: 'sub' }, S.questionsIncompleteShort)))],
           [S.periods.response, ...col((m) => responseCell(m.responseRate))],
           [S.periods.answerTime, ...col((m) => timeCell(m.timeToAnswer))],
           [S.periods.messages, ...col((m) => countText(m.messages))],

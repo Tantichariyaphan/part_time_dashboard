@@ -1,6 +1,6 @@
 // Normalization: raw adapter tabs -> Screen Data rows with documented columns only.
 // Rule (REQ §6): blank != 0. Blank cells become null; numeric 0 stays 0.
-import { COLUMNS, NUMERIC_COLUMNS, BOOLEAN_COLUMNS } from '../contract/columns.js';
+import { COLUMNS, NUMERIC_COLUMNS, BOOLEAN_COLUMNS, OPTIONAL_COLUMNS } from '../contract/columns.js';
 import { OPTIONAL_SHEET_KEYS } from '../contract/enums.js';
 
 const isBlank = (v) => v === undefined || v === null || v === '';
@@ -25,7 +25,7 @@ function normalizeRow(key, raw) {
   const out = {};
   const num = NUMERIC_COLUMNS[key] ?? [];
   const bool = BOOLEAN_COLUMNS[key] ?? [];
-  for (const col of COLUMNS[key]) {
+  for (const col of [...COLUMNS[key], ...(OPTIONAL_COLUMNS[key] ?? [])]) {
     let v = raw[col];
     if (isBlank(v)) { out[col] = null; continue; }
     if (num.includes(col)) v = toNumber(v);
@@ -53,7 +53,7 @@ export function normalizeTabs(rawTabs) {
     issues[key] = {
       absent: false,
       missingColumns: COLUMNS[key].filter((c) => !have.has(c)),
-      extraColumns: (tab.columns ?? []).filter((c) => !COLUMNS[key].includes(c)),
+      extraColumns: (tab.columns ?? []).filter((c) => !COLUMNS[key].includes(c) && !(OPTIONAL_COLUMNS[key] ?? []).includes(c)),
     };
     screen[key] = (tab.rows ?? []).map((r) => normalizeRow(key, r));
   }

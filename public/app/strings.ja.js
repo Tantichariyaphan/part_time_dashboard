@@ -73,7 +73,12 @@ export const S = {
   run: {
     ok: '完了（質問あり）', silent_ok: '完了（質問なし）', late: '完了（遅延）', running: '実行中', not_due: '時刻前',
     unknown: '結果確認不可', blocked: '停止', missing: '未実行', no_row: '未確認（記録なし）',
+    unconfirmed: '状態未判定',
   },
+  // Run status is not read from the source until the client decides how (Q-49). Wording provisional (Q-24).
+  runStatusUnconfirmed: '巡回結果の読み方が発注者側で未決定のため、巡回・日次の状態は判定していません（予定時刻のみ表示）。',
+  questionsIncomplete: (t) => `${t} 以降の質問は記録元にまだ記録されていません（発注者が修正中）。件数は実際より少ない可能性があります。`,
+  questionsIncompleteShort: '記録が不完全',
   runDerived: { unrecognized: '未知の状態値', deadline_passed_running: '実行中のまま期限超過' },
   legend: [
     ['tone-ok', '完了（質問あり）'], ['tone-silent', '完了（質問なし）'], ['tone-late', '完了（遅延）'],
@@ -124,7 +129,8 @@ export const S = {
     filters: { all: 'すべて', waiting: '回答待ち', answered: '回答あり', closed: 'クローズ' },
     wait: (h) => `${h}時間 待ち`, candidateNote: '現在の記録では回答の確定はできません（候補止まり）',
   },
-  failures: { missing: '欠落', blocked: '停止', late: '遅延', unknown: '未確認', days: (d) => `直近${d}日`, sends: '送信の失敗・結果未確認', none: '該当はありません', notConnected: '未接続の店舗（対象外）' },
+  failures: { missing: '欠落', blocked: '停止', late: '遅延', unknown: '未確認', days: (d) => `直近${d}日`, sends: '送信の失敗・結果未確認', none: '該当はありません', notConnected: '未接続の店舗（対象外）',
+    unclassifiedSends: (n) => `結果の値を分類できない送信 ${n}件（失敗とは判定していません）` },
   machines: {
     updates: 'データ更新', machines: '稼働機', light: '簡易チェック', alerts: '最近のアラート', production: '本番', standby: '待機',
     lastSuccess: '最終成功', through: '記録時点', heartbeat: 'ハートビート', ago: (m) => `${m}分前`, verify: '自己検査', failItems: '失敗項目',
@@ -133,10 +139,19 @@ export const S = {
     generated: (t, ago) => `生成 ${t}（${ago}）`, lastHour: '直近60分の受信', perInterval: (m) => `（${m}分ごとに書込み）`,
     recent: '受信履歴（直近60分）', count: (n) => `${n}件`,
   },
+  // Connection of the client's two files (copy adapter only). Codes are shown as they are.
+  sources: {
+    title: 'データ元（発注者のファイル）', copy: '閲覧専用コピー', heartbeat: '稼働機ハートビートシート', readAt: '最終読取',
+    state: { NOT_CONNECTED: '未接続', CONNECTED: '接続中', PARTIAL: '一部停止', BLOCKED: '停止（契約チェック不合格）', ERROR: '読取失敗' },
+    tabState: { ok: '合格', blocked: '停止' }, rows: (n) => `${n}行`, findings: (n) => `指摘 ${n}件`,
+    replies: (c, a, u) => `返信の紐付け：確定 ${c}／特定不可 ${a}／紐付けなし ${u}`,
+    validatedOnly: '検証のみ（巡回状態は未判定）', row: '元の行番号',
+  },
   periods: {
     d7: '7日', d30: '30日', patrolRate: '巡回 成功率', dailyRate: '日次 成功率', stopped: '欠落／停止／未確認', questions: '質問送信数',
     response: '回答率', answerTime: '回答までの時間', messages: 'メッセージ数', bot: 'Bot返信数', perDay: '日別メッセージ数',
     unknownOrigin: (n) => `元メッセージ不明の返信 ${n}件`, notConcluded: (n) => `確認済みの回答率は未集計（関連の可能性 ${n}件）`,
     minutes: (m) => `${Math.round(m)}分`, unconfirmedSchedule: 'スケジュール未確認の期間を含みます',
+    rateUnconfirmed: '未判定',
   },
 };

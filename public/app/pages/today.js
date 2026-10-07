@@ -88,5 +88,6 @@ export function view(env, ctx) {
     d.days.map((day) => Card(
       { title: `${day.label === 'today' ? S.dayToday : S.dayYesterday}　${dateLabel(day.businessDay)}` },
       day.unconfirmedSchedule.slot || day.unconfirmedSchedule.daily ? AlertCard(null, S.scheduleUnconfirmed, 'warn') : null,
+      day.unconfirmedStatus ? AlertCard(null, S.runStatusUnconfirmed, 'warn') : null,
       day.items.length ? h('div', { class: 'rows' }, day.items.map((r) => RunRow(r, ctx, day.businessDay))) : EmptyState(S.none))));
 }

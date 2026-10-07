@@ -1,7 +1,10 @@
 // HTTP server for the skeleton: static UI + read-only JSON API.
 // Technology/hosting is UNCONFIRMED (Q-01); this plain Node server is a development harness with zero dependencies.
 //
-//   NIKUSHO_LIVE_ADAPTER   devmock (default for this milestone) | none
+//   NIKUSHO_LIVE_ADAPTER   devmock (default for this milestone) | none | copy
+//                          copy = reader of the client's View-only Copy + Machine Heartbeat Sheet (real data; needs
+//                          NIKUSHO_AUTH=google; configuration in server/source/config.js). NOT_CONNECTED until the reader
+//                          account exists (Q-48): nothing is read and nothing is fabricated.
 //   NIKUSHO_DEV_SCENARIO   full (default) | phase1 | stale-messages | stopped | error | machine-down   (devmock only)
 //   PORT                   default 3000
 //   HOST                   default 127.0.0.1 (dev gate accepts loopback only)
@@ -17,6 +20,10 @@ import { createGoogleAuth } from './auth/index.js';
 import { createDevMockAdapter } from '../src/adapters/mock/devMockAdapter.js';
 import { createDemoAdapter } from '../src/adapters/demo/demoAdapter.js';
 import { createNoneAdapter } from '../src/adapters/none/noneAdapter.js';
+import { createCopyAdapter } from '../src/adapters/copy/copyAdapter.js';
+import { COPY_TAB, FORBIDDEN_FIELDS, HEARTBEAT_TAB } from '../src/contract/copyContract.js';
+import { loadSourceConfig, SourceConfigError } from './source/config.js';
+import { createSheetsReader } from './source/sheetsReader.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
@@ -28,11 +35,30 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
 };
 
-export function chooseLiveAdapter(env = process.env) {
+/**
+ * @param {object} env
+ * @param {{getAccessToken?: () => Promise<string>}} reader  token source of the dedicated READER account (Q-48). Not
+ *   available yet: no environment variable can supply it, so `copy` starts with both readers NOT_CONNECTED.
+ */
+export function chooseLiveAdapter(env = process.env, { getAccessToken } = {}) {
   const which = env.NIKUSHO_LIVE_ADAPTER ?? 'devmock';
   if (which === 'none') return createNoneAdapter();
   if (which === 'devmock') return createDevMockAdapter({ scenario: env.NIKUSHO_DEV_SCENARIO ?? 'full' });
-  throw new Error(`NIKUSHO_LIVE_ADAPTER="${which}" is not available: the real Source pipeline is not connected (UNCONFIRMED Q-01/Q-08).`);
+  if (which === 'copy') {
+    const cfg = loadSourceConfig(env);
+    return createCopyAdapter({
+      config: cfg.adapter,
+      // Two separate readers, one per client file; the same reader account; ids only from server configuration.
+      copyReader: createSheetsReader({
+        spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
+        refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
+      }),
+      heartbeatReader: createSheetsReader({
+        spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
+      }),
+    });
+  }
+  throw new Error(`NIKUSHO_LIVE_ADAPTER must be one of: devmock, none, copy`);
 }
 
 function send(res, status, body, headers = {}) {
@@ -108,7 +134,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(e instanceof AuthConfigError ? `Auth configuration: ${e.message} (see docs/auth-prototype.md)` : 'Auth configuration could not be read');
     process.exit(1);
   }
-  const live = chooseLiveAdapter();
+  let live;
+  try { live = chooseLiveAdapter(); } catch (e) {
+    console.error(e instanceof SourceConfigError ? `Source configuration: ${e.message} (see docs/implementation-notes.md §8.3)` : `Live adapter: ${e.message}`);
+    process.exit(1);
+  }
   const demo = createDemoAdapter();
   const auth = authConfig.mode === 'google' ? createGoogleAuth(authConfig) : null;
   const server = createServer({ live, demo, auth, gate: auth ? undefined : createDevLoopbackGate() });

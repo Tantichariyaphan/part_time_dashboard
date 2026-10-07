@@ -24,6 +24,10 @@ test('UI never interprets registry text as markup', () => {
 // nothing else. It receives no registry data (see security.test.js).
 const GOOGLE_PROVIDER = '/server/auth/google.js';
 const GOOGLE_OAUTH_URLS = new Set(['https://accounts.google.com/o/oauth2/v2/auth', 'https://oauth2.googleapis.com/token', 'https://www.googleapis.com/oauth2/v3/certs', 'https://accounts.google.com']);
+// The second exception: the reader of the client's two spreadsheets may name the fixed Google Sheets API base - and
+// nothing else. It is GET-only and receives no registry data (see security.test.js).
+const SHEETS_READER = '/server/source/sheetsReader.js';
+const SHEETS_READER_URLS = new Set(['https://sheets.googleapis.com/v4/spreadsheets/']);
 
 test('no external services: UI/server code references no absolute http(s) URL', () => {
   for (const f of code) {
@@ -31,6 +35,10 @@ test('no external services: UI/server code references no absolute http(s) URL', 
     for (const l of t) {
       if (f.endsWith(GOOGLE_PROVIDER)) {
         for (const u of l.match(/https?:\/\/[^'"`\s)]*/g) ?? []) assert.ok(GOOGLE_OAUTH_URLS.has(u), `${f}: unexpected URL ${u}`);
+        continue;
+      }
+      if (f.endsWith(SHEETS_READER)) {
+        for (const u of l.match(/https?:\/\/[^'"`\s)]*/g) ?? []) assert.ok(SHEETS_READER_URLS.has(u), `${f}: unexpected URL ${u}`);
         continue;
       }
       assert.equal(/https?:\/\/(?!localhost|127\.0\.0\.1|\$\{host\})/.test(l), false, `${f}: ${l.trim()}`);

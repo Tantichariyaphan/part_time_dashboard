@@ -6,6 +6,7 @@ import { S } from './strings.ja.js';
 const RUN_TONE = {
   ok: 'tone-ok', silent_ok: 'tone-silent', late: 'tone-late', running: 'tone-wait', not_due: 'tone-wait',
   unknown: 'tone-unknown', blocked: 'tone-blocked', missing: 'tone-missing', no_row: 'tone-missing',
+  unconfirmed: 'tone-neutral', // listed, not judged (Q-49): must not look like any REQ status colour
 };
 export const runTone = (k) => RUN_TONE[k] ?? 'tone-unknown';
 export const runLabel = (k) => S.run[k] ?? S.unknown;

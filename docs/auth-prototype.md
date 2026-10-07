@@ -5,7 +5,7 @@ Authority: REQ §7-6, `docs/architecture.md` §5 (Authentication vs Authorizatio
 operating procedure for the prototype (including the allowlist add/remove procedure, REQ §3 #6). It does not change the contract;
 open items stay in the Q register (`docs/connection-spec.md` §12) and in `docs/implementation-notes.md` §5.
 
-What has been verified: automated tests against a **local test IdP** (`tests/fakeGoogle.js`) that runs the real provider code end to end; and one real Google-account authorization check: non-allowlisted `goter5555@gmail.com` successfully signed in and was denied access (**PASS**; see §9).
+What has been verified: automated tests against a **local test IdP** (`tests/fakeGoogle.js`) that runs the real provider code end to end; and one real Google-account authorization check: non-allowlisted `demo@example.invalid` successfully signed in and was denied access (**PASS**; see §9).
 What has **not** been verified: logout with a real Google account, revocation without logout, direct API access after revocation, real phones, and the client's environment — **TV3 and TV15 are not passed** (see §9).
 
 ## 1. Flow
@@ -175,7 +175,7 @@ returns to `/demo/`; failed login message; no horizontal overflow at 375 px; `do
 
 | Check | Result | Evidence |
 |---|---|---|
-| Non-allowlisted Google account authorization | **PASS** | `goter5555@gmail.com` successfully logged in with Google and was denied access. Displayed: “You do not have access rights. This account is not authorized to view the administration panel.” |
+| Non-allowlisted Google account authorization | **PASS** | `demo@example.invalid` successfully logged in with Google and was denied access. Displayed: “You do not have access rights. This account is not authorized to view the administration panel.” |
 
 **Manual, real-account checks — not yet verified (UNCONFIRMED / not yet verified):**
 
@@ -221,7 +221,9 @@ Google OAuth client: redirect URI `https://<project>.vercel.app/auth/callback`; 
 * Preview URLs are refused (Host check); use the production URL.
 * Sessions and login flows live in function memory: a new instance can end a session or fail a login in progress (sign in again).
   Revocation through `NIKUSHO_ALLOWLIST_JSON` needs a redeploy. Neither is evidence for TV3/TV15 in the client's environment.
-* Not production: Vercel under a PIATEC/personal account must never serve real Source data (Q-01).
+* Not production: Vercel under a PIATEC/personal account must never serve real data (Q-01). The client asked (10/7) to confirm that `parttimedashboard.vercel.app` is a prototype location; production goes to an environment under the client's name (account, billing).
+* The client checked the prototype on 10/7 and observed that no data is returned without logging in (client observation, not a TV3 pass).
+* **Two kinds of account, never combined:** dashboard **login accounts** (people; this allowlist) and PIATEC's **reader account** (view access to exactly two files: the client's View-only Copy and the Machine Heartbeat Spreadsheet — connection-spec §0). Maru's account is never used for reading data. The reader account is not part of this auth prototype (Q-48).
 * Tests: `tests/vercel.test.js` (entry start-up, 503 on misconfiguration, trimmed values, env allowlist, sign-in allow/deny via the test IdP).
 
 ## 11. Remaining UNCONFIRMED items

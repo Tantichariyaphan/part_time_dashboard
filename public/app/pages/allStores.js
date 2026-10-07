@@ -36,9 +36,10 @@ export function view(env) {
         h('div', { class: 'stack' },
           scheduleLine(S.all.patrol, s.patrol, s.store),
           scheduleLine(S.all.daily, s.daily, s.store),
+          (s.patrol.unconfirmedStatus || s.daily.unconfirmedStatus) && h('div', { class: 'small muted' }, S.runStatusUnconfirmed),
           Metrics(
             MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled, null, { href: href.today(s.store) }),
-            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, null, { href: href.questions(s.store) }),
+            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, s.questionsIncomplete ? S.questionsIncompleteShort : null, { href: href.questions(s.store) }),
             MetricCard(S.all.messages, countText(s.messagesToday), `${S.all.botReplies} ${countText(s.botRepliesToday)}`, { href: href.messages(s.store) }),
           ),
           h('a', { class: 'rowlink', href: href.machines() }, KeyValues([
