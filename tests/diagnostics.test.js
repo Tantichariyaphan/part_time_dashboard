@@ -66,6 +66,8 @@ test('DIAG-3 analyze-heartbeat: hourly checks around the slots, send-log cross-c
   assert.ok(Object.values(slots).length >= 1);
   assert.ok(Object.values(slots).every((x) => ['ok', 'silent_ok', 'blocked', 'unknown', 'unconfirmed', 'completed_count_unknown'].includes(x)));
   assert.equal(JSON.stringify(o).includes('INVENTED'), false, 'free text never in the output');
+  assert.deepEqual(o.hardRows.map((h) => [h.shape.split(' | ')[0], h.count]).sort(), [['ai_result', 1], ['stop', 1]], 'hard-to-classify rows listed by shape with row/time only');
+  assert.ok(o.hardRows.every((h) => h.rows.every((x) => /^[^@]+@\d\d-\d\d \d\d:\d\d$/.test(x))));
   assert.ok(POLLING_CHANGE_AT > Date.parse('2026-10-05T00:00:00+07:00'));
 });
 
@@ -94,6 +96,9 @@ test('DIAG-5 reconcile: SOURCE = TRANSFORMED = SCREEN on synthetic rows (meta se
   assert.equal(o.messagesPerDay.find((d) => d.day === '2026-10-07').textExact, 1, 'Thai text with markup compared character by character');
   assert.equal(o.sendsPerDay.find((d) => d.day === '2026-10-07').screenProblems, 1);
   assert.equal(o.questionsPerDay.find((d) => d.day === '2026-10-06').confirmed, 0);
+  assert.equal(o.questionCriteria.tab, 'AI質問追跡');
+  assert.equal(o.questionCriteria.windowFrom, '2026-10-01T05:00:00+07:00');
+  assert.deepEqual(o.questionRows.map((r) => [r.inWindow, r.state]), [[true, 'waiting']]);
   const json = JSON.stringify(o);
   for (const leak of ['สวัสดี', 'Staff One', '900000000000000777', '1.23457E+17', 'hello', 'question ']) assert.equal(json.includes(leak), false, leak);
   assert.equal(/reply \d/.test(json), false, 'send text');

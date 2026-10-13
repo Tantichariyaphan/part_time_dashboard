@@ -18,9 +18,13 @@ import { createServiceAccountTokenSource } from './source/serviceAccountToken.js
 
 /** The stores / schedules configuration shipped with the code (config/stores.json), as an absolute path. */
 export const BUNDLED_STORES_FILE = fileURLToPath(new URL('../config/stores.json', import.meta.url));
-// A cold read makes one token request followed by three sequential Sheets reads. Bound each at 10 seconds so a
-// source failure is converted to the adapter's safe error state within Vercel's 60-second function limit.
-const LIVE_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Per-request time limit for the Google token and Sheets requests of a deployed dashboard. One read = token + 3 GETs per file
+ * (the two files in parallel), so the worst case stays under 4 x 10 s = 40 s, inside the function limit in vercel.json
+ * (maxDuration 60): a stalled Google API ends as an ERROR state with a code, not as a platform time-out.
+ */
+export const PRODUCTION_READ_TIMEOUT_MS = 10_000;
 
 /** True for a deployed dashboard: on Vercel (VERCEL=1) or when NIKUSHO_DEPLOYMENT=production. */
 export const isProduction = (env = process.env) => String(env.VERCEL ?? '').trim() === '1' || String(env.NIKUSHO_DEPLOYMENT ?? '').trim() === 'production';
@@ -29,18 +33,19 @@ export const isProduction = (env = process.env) => String(env.VERCEL ?? '').trim
  * The two read-only readers of the client's files, built from server configuration only. Shared by the live adapter and the
  * read-only diagnostics in scripts/ (so a diagnostic reads exactly what the dashboard reads, with the same checks).
  */
-export function createLiveReaders(env = process.env, { getAccessToken: injected } = {}) {
+export function createLiveReaders(env = process.env, { getAccessToken: injected, timeoutMs } = {}) {
   const cfg = loadSourceConfig(env);
-  const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey, { timeoutMs: LIVE_REQUEST_TIMEOUT_MS }) : undefined);
+  const t = timeoutMs ? { timeoutMs } : {};
+  const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey, t) : undefined);
   return {
     cfg,
     // Two separate readers, one per client file; the same reader account; ids only from server configuration.
     copyReader: createSheetsReader({
       spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
-      refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, timeoutMs: LIVE_REQUEST_TIMEOUT_MS,
+      refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, ...t,
     }),
     heartbeatReader: createSheetsReader({
-      spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, timeoutMs: LIVE_REQUEST_TIMEOUT_MS,
+      spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, ...t,
     }),
   };
 }
@@ -75,13 +80,13 @@ const CODE = /^[a-z0-9_]{1,40}$/;
  * @param {object} env
  * @param {{getAccessToken?: Function, readers?: {cfg: object, copyReader: object, heartbeatReader: object}, log?: Function, now?: Function}} [deps]
  */
-export function createProductionLiveAdapter(env = process.env, { getAccessToken, readers, log = console.error, now } = {}) {
+export function createProductionLiveAdapter(env = process.env, { getAccessToken, readers, log = console.error, now, timeoutMs = PRODUCTION_READ_TIMEOUT_MS } = {}) {
   const e = { ...env };
   if (!e.NIKUSHO_STORES_JSON && !e.NIKUSHO_STORES_FILE) e.NIKUSHO_STORES_FILE = BUNDLED_STORES_FILE; // the shipped Bangkok configuration
   const requested = String(e.NIKUSHO_LIVE_ADAPTER ?? 'copy').trim();
   let built;
   try {
-    built = readers ?? createLiveReaders(e, { getAccessToken });
+    built = readers ?? createLiveReaders(e, { getAccessToken, timeoutMs });
   } catch (err) {
     if (!(err instanceof SourceConfigError)) throw err;
     log(`[source] live entry NOT CONNECTED - source configuration: ${err.message}`);
@@ -100,7 +105,13 @@ export function createProductionLiveAdapter(env = process.env, { getAccessToken,
     log('[source] live entry NOT CONNECTED - NIKUSHO_LIVE_ADAPTER must be "copy" (or unset) in production; mock/demo data are never served as live');
     return createSourceUnavailableAdapter({ reason: 'live_adapter_not_copy', stores: cfg.adapter.stores, schedules: cfg.adapter.schedules, ...(now ? { now } : {}) });
   }
-  const reason = (r) => (CODE.test(String(r?.reason ?? '')) ? r.reason : 'not_configured');
+  // Name the missing piece precisely: no key variable at all, or a key FILE path that does not exist (on Vercel a file path
+  // never exists - use NIKUSHO_READER_KEY_JSON there). Codes only.
+  const keyCode = { not_configured: 'reader_key_not_configured', file_not_found: 'reader_key_file_not_found' }[cfg.readerKeyStatus];
+  const reason = (r) => {
+    const code = CODE.test(String(r?.reason ?? '')) ? r.reason : 'not_configured';
+    return code === 'reader_account_pending' && keyCode ? keyCode : code;
+  };
   const keep = (r) => (r?.connected ? r : notConnectedReader(reason(r))); // a reader that cannot read reports its code only
   const adapter = createCopyAdapter({ config: cfg.adapter, copyReader: keep(built.copyReader), heartbeatReader: keep(built.heartbeatReader), ...(now ? { now } : {}), log });
   // For the start-up log only: is each file configured (codes, never ids or key material)?

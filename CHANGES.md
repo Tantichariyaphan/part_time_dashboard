@@ -13,9 +13,22 @@ Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/impleme
   `devmock` / `none` / `demo` is refused there. Local development is unchanged (dev mock default).
 - **UI:** strip 「実データに接続できていません …（モック・デモは表示しません）」 on the live entry when the copy is not connected; the 未接続 card
   text no longer says "Phase 2".
-- `vercel.json`: `maxDuration: 60` for the entry. The production reader bounds the token request and each sequential Sheets request to 10 seconds, so a cold-read failure returns its safe state within that cap. `.env.example`: `NIKUSHO_DEPLOYMENT` and the local-file versus hosted-JSON reader-key distinction.
-- **Tests:** `tests/live-only.test.js` (LIVE-1 … LIVE-8); `tests/vercel.test.js` composes the server like the Vercel entry. 202 → 210.
-- **Docs:** `README.md`, `docs/auth-prototype.md` §10a, `docs/architecture.md` §10/§12, `docs/implementation-notes.md` §11,
+- `vercel.json`: `maxDuration: 60` for the entry. `.env.example`: `NIKUSHO_DEPLOYMENT`; key variables explained (FILE on the laptop,
+  JSON on a hosted deployment, JSON wins when both are set).
+- **Security (pre-commit review):** Google token and Sheets requests of a deployed dashboard time out after 10 s
+  (`PRODUCTION_READ_TIMEOUT_MS`; worst case 4 × 10 s < `maxDuration` 60), so a stalled Google API ends as an ERROR state with a code,
+  not a platform time-out. New `.vercelignore` keeps `.env*`, `config/allowlist.json`, reader keys, `secrets/`, `Claude outputs/` and the
+  client sample folders out of any upload. Precise NOT CONNECTED codes `reader_key_not_configured` / `reader_key_file_not_found`.
+- **Added** `scripts/outage-drill.js` (`npm run drill:outage`): outage drill on a TEST CONNECTION (synthetic copy behind an in-process fake
+  Sheets API; the real reader → contract → adapter → freshness → API path); scenarios `copy-stops`, `access-lost`, `api-timeout`,
+  `bad-contract`; measures copy → API latency, outage → 更新停止, restore → normal. Production polling and client files are not touched.
+- **Diagnostics:** `diag:heartbeat -- --rows` lists the hard-to-classify `心拍` rows by 元の行番号 per class/shape (section [7]);
+  `diag:reconcile -- --rows` prints the question extraction criteria and each `AI質問追跡` row in or near the window (section [7b]).
+- **Remove** the stray file `tics and reconciliation…` committed in `ad78238` (`git rm`, no history rewrite).
+- **Tests:** `tests/live-only.test.js` (LIVE-1 … LIVE-12), `tests/outage-drill.test.js` (DRILL-1 … DRILL-3), DIAG-3/DIAG-5 extended;
+  `tests/vercel.test.js` composes the server like the Vercel entry. 202 → 219.
+- **Docs:** `docs/client-response-2026-10-15.md` (new: consolidated issue list, 10/15 feature list, refresh/outage test plan, Vercel
+  interim facts for the client's decision), `README.md`, `docs/auth-prototype.md` §10a, `docs/architecture.md` §10/§12, `docs/implementation-notes.md` §11,
   `docs/connection-spec.md` §12.2 (Q-01), `docs/traceability-matrix.md`, `TEST_REPORT.md` (L9).
 - Kept: mock fixtures, demo snapshot and `/demo/`, read-only access, sign-in and allowlist.
 

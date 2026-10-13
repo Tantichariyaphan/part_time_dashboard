@@ -1,0 +1,11 @@
+# Never upload local secrets or client data to Vercel (CLI or Git deployments). Same intent as .gitignore, kept explicit
+# because the function bundle includes config/** (vercel.json includeFiles). The deployment needs only:
+# api/, public/, src/, server/, config/stores.json, package.json, vercel.json.
+.env
+.env.*
+config/allowlist.json
+config/reader-key*.json
+*.key.json
+secrets/
+Claude outputs/
+docs/sample data_*/

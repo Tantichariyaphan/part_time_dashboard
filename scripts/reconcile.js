@@ -153,6 +153,14 @@ export async function reconcile({ read, adapterConfig, now, days = 7, endDay = n
   }
   for (const it of qPage.items ?? []) { const d = qDay.get(dayOfMs(parseMs(it.sent_at))); if (d) d.scr += 1; }
   out.questionsPerDay = dayList.map((day) => ({ day, ...qDay.get(day) }));
+  // Extraction criteria and the matching rows (元の行番号, time, group, state - no names, no question text), for cross-checking
+  // against the client's send records.
+  const win = { from: formatIso(businessDayWindow(dayList[0], store).start), to: formatIso(businessDayWindow(dayList[dayList.length - 1], store).end) };
+  out.questionCriteria = { tab: COPY_TAB.questions, timeColumn: '送信時刻', zone: tz ?? '(ISO offsets only)', windowFrom: win.from, windowToExclusive: win.to,
+    rule: 'every row whose 送信時刻 falls in the window, any state; business day = store business_day_start', totalRowsInTab: qRecs.length };
+  out.questionRows = qRecs.map((r) => ({ row: String(r[ROW_ID]).trim(), at: parseCopyTime(r['送信時刻'], tz), group: String(r.group ?? '').trim(), state: String(r.state ?? '').trim() }))
+    .filter((r) => Number.isFinite(r.at)).sort((x, y) => x.at - y.at)
+    .map((r) => ({ ...r, at: formatIso(r.at), inWindow: r.at >= Date.parse(win.from) && r.at < Date.parse(win.to) }));
   for (const d of out.questionsPerDay) {
     check(`④ ${d.day}: SOURCE = TRANSFORMED = SCREEN questions`, d.src === d.tr && d.tr === d.scr, `${d.src}/${d.tr}/${d.scr}`);
     check(`④ ${d.day}: no confirmed answer (copy cannot prove one)`, d.confirmed === 0);
@@ -207,6 +215,10 @@ export function print(o, readInfo) {
   console.log(table(['day', 'SOURCE', 'TRANSFORMED', 'SCREEN', 'with candidate', 'with confirmed'], o.questionsPerDay.map((d) => [d.day, d.src, d.tr, d.scr, d.candidate, d.confirmed])));
   if (o.periods) console.log(`\n[6] ⑦ 7 days: ${JSON.stringify(o.periods)}`);
   console.log(`\n[7] Runs: ${JSON.stringify(o.runs)}\n    ${o.runsNote}`);
+  if (o.showRows) {
+    console.log(`\n[7b] Question extraction: ${JSON.stringify(o.questionCriteria)}`);
+    console.log(table(['元の行番号', '送信時刻', 'group', 'state', 'in window'], o.questionRows.map((r) => [r.row, r.at, r.group, r.state, r.inWindow ? 'yes' : ''])));
+  }
   const bad = o.checks.filter((c) => c.result !== 'match');
   console.log(`\n[8] Checks: ${o.checks.length - bad.length} match, ${bad.length} mismatch`);
   for (const c of bad) console.log(`    MISMATCH ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
@@ -217,6 +229,7 @@ if (isMain(import.meta.url)) {
   try {
     const live = await readLive();
     const o = await reconcile({ read: live.copy, adapterConfig: live.cfg.adapter, now: live.copyReadAt, days: a.days ? Number(a.days) : 7, endDay: a.end ?? null });
+    o.showRows = !!a.rows;
     print(o, `LIVE View-only Copy, one GET read finished ${formatIso(live.copyReadAt)} (${Math.round((live.copyReadAt - live.startedAt) / 100) / 10} s)`);
     writeJson(a.json, o);
   } catch (e) {

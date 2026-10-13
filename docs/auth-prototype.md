@@ -224,7 +224,7 @@ Google OAuth client: redirect URI `https://<project>.vercel.app/auth/callback`; 
 * **Data (since 2026-10-13):** the live entry (`/`, `/api/live/*`) is always the client's View-only Copy + Heartbeat Sheet (`server/liveSource.js`,
   production policy forced in `api/server.js`). The dev mock is not wired on Vercel; `NIKUSHO_LIVE_ADAPTER=devmock|none|demo` is refused
   (live entry shows 未接続 `live_adapter_not_copy`). Without the source variables below the live entry is **未接続**
-  (`source_config_invalid` / `reader_account_pending`) with the red 更新停止 banner and the strip 「実データに接続できていません」 — no data.
+  (`source_config_invalid` / `reader_key_not_configured`) with the red 更新停止 banner and the strip 「実データに接続できていません」 — no data.
   The anonymized demo stays on `/demo/` (separate entry, labelled デモ).
 * Source variables (server-side only; Production scope only, never Preview): `NIKUSHO_COPY_SPREADSHEET_ID`, `NIKUSHO_HEARTBEAT_SPREADSHEET_ID`,
   `NIKUSHO_READER_KEY_JSON` (the whole service-account JSON; mark it *Sensitive*), `NIKUSHO_COPY_STORE=NIKUSHO_BANGNA`,
@@ -233,7 +233,12 @@ Google OAuth client: redirect URI `https://<project>.vercel.app/auth/callback`; 
 * **Not production by agreement:** Vercel under a PIATEC/personal account must never serve real data (Q-01; `Claude.md` rule 20). The client asked (10/7) to confirm that `parttimedashboard.vercel.app` is a prototype location; production goes to an environment under the client's name (account, billing). **Setting the source variables on PIATEC's vercel.app needs the client's written agreement first**; the same code runs unchanged in the client's environment.
 * The client checked the prototype on 10/7 and observed that no data is returned without logging in (client observation, not a TV3 pass).
 * **Two kinds of account, never combined:** dashboard **login accounts** (people; this allowlist) and PIATEC's **reader account** (view access to exactly two files: the client's View-only Copy and the Machine Heartbeat Spreadsheet — connection-spec §0). Maru's account is never used for reading data. The reader account is not part of this auth prototype (Q-48).
-* Tests: `tests/vercel.test.js` (entry start-up, 503 on misconfiguration, trimmed values, env allowlist, sign-in allow/deny via the test IdP; live entry = copy NOT CONNECTED, never the dev mock) and `tests/live-only.test.js` (LIVE-1 … LIVE-8).
+* Limits on Vercel: function `maxDuration` 60 s; every Google request 10 s (`PRODUCTION_READ_TIMEOUT_MS`). `.vercelignore` keeps `.env*`,
+  the allowlist file, reader-key files, `secrets/`, `Claude outputs/` and the client sample folders out of uploads. If both key variables
+  are set, `NIKUSHO_READER_KEY_JSON` wins; `NIKUSHO_READER_KEY_FILE` is for the laptop only.
+* **Status 2026-10-13 (client direction):** placing the reader key on Vercel or connecting live data there is **not approved**. The
+  facts the client asked for before deciding are in `docs/client-response-2026-10-15.md` §3.
+* Tests: `tests/vercel.test.js` (entry start-up, 503 on misconfiguration, trimmed values, env allowlist, sign-in allow/deny via the test IdP; live entry = copy NOT CONNECTED, never the dev mock) and `tests/live-only.test.js` (LIVE-1 … LIVE-12).
 
 ## 11. Remaining UNCONFIRMED items
 

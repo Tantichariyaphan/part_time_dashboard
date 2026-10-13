@@ -133,3 +133,39 @@ test('LIVE-8 credentials stay server-side: no key material, token, spreadsheet i
   const all = JSON.stringify(await liveBodies(live)) + logs.join('\n');
   for (const leak of ['PRIVATE KEY', privateKey.slice(40, 80), 'reader-test@', 'kid-test', COPY_ID, HB_ID, 'token endpoint said no']) assert.equal(all.includes(leak), false, leak);
 });
+
+test('LIVE-9 a missing reader key is named precisely: no key variable vs a key FILE path that does not exist (JSON wins when both are set)', async () => {
+  const none = await chooseLiveAdapter(srcEnv(), { log: silent }).load();
+  assert.equal(none.sources.copy.state, 'NOT_CONNECTED');
+  assert.equal(none.sources.copy.reason, 'reader_key_not_configured');
+  const missingFile = await chooseLiveAdapter(srcEnv({ NIKUSHO_READER_KEY_FILE: '/nonexistent/nikusho-reader.json' }), { log: silent }).load();
+  assert.equal(missingFile.sources.copy.reason, 'reader_key_file_not_found');
+  assert.equal(JSON.stringify(missingFile).includes('/nonexistent/'), false, 'the path is never echoed');
+  // both set: the JSON is the one used (an invalid JSON is a configuration error, never a silent fall-back to the file)
+  const both = chooseLiveAdapter(srcEnv({ NIKUSHO_READER_KEY_FILE: '/nonexistent/nikusho-reader.json', NIKUSHO_READER_KEY_JSON: '{"type":"service_account"}' }), { log: silent });
+  assert.equal(both.unavailable, 'source_config_invalid');
+});
+
+test('LIVE-10 a stalled Google API ends as an ERROR state inside the read time limit, not as a platform time-out', async () => {
+  const started = Date.now();
+  const live = createProductionLiveAdapter(srcEnv(), { getAccessToken: () => new Promise(() => {}), timeoutMs: 50, log: silent });
+  const r = await live.load();
+  assert.equal(r.sources.copy.state, 'ERROR');
+  assert.equal(r.sources.copy.reason, 'token_unavailable');
+  assert.ok(Date.now() - started < 2000);
+});
+
+test('LIVE-11 vercel.json: the function limit covers the worst read (token + 3 requests at the production time limit) and stays within the Hobby maximum', async () => {
+  const { PRODUCTION_READ_TIMEOUT_MS } = await import('../server/liveSource.js');
+  const v = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const fn = v.functions['api/server.js'];
+  assert.ok(fn.maxDuration * 1000 >= 4 * PRODUCTION_READ_TIMEOUT_MS + 10_000, 'room for the worst read plus processing');
+  assert.ok(fn.maxDuration <= 300, 'Hobby plan maximum (300 s)');
+  assert.equal(fn.includeFiles, '{src,server,config}/**');
+});
+
+test('LIVE-12 .vercelignore keeps local secrets and client data out of any deployment upload, and keeps what the function needs', () => {
+  const lines = readFileSync(new URL('../.vercelignore', import.meta.url), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  for (const must of ['.env', '.env.*', 'config/allowlist.json', 'config/reader-key*.json', '*.key.json', 'secrets/', 'Claude outputs/', `docs/sample ${'data'}_*/`]) assert.ok(lines.includes(must), must); // name split: COPY-28
+  for (const keep of ['api', 'public', 'src', 'server', 'config', 'config/stores.json', 'package.json', 'vercel.json']) assert.equal(lines.some((l) => l.replace(/\/$/, '') === keep), false, keep);
+});

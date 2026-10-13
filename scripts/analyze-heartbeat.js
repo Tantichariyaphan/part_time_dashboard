@@ -25,7 +25,7 @@ export function analyze({ heartbeatRows, sendRows, tz, store, schedules, days = 
   const rows = heartbeatRows.map((r) => {
     const at = parseCopyTime(r['時刻'], tz);
     const parsed = parseResult(r['結果']);
-    return { at, parsed, cls: classOf(parsed), shape: shapeOf(r['結果']), sendMeat: sendWord(r['送信MEAT'] ?? null), sendIn: sendWord(r['送信IN'] ?? null), gap: String(r['gap分'] ?? '').trim() };
+    return { row: String(r['元の行番号'] ?? '').trim() || null, at, parsed, cls: classOf(parsed), shape: shapeOf(r['結果']), sendMeat: sendWord(r['送信MEAT'] ?? null), sendIn: sendWord(r['送信IN'] ?? null), gap: String(r['gap分'] ?? '').trim() };
   });
   const timed = rows.filter((r) => Number.isFinite(r.at)).sort((a, b) => a.at - b.at);
   const out = { label, rows: rows.length, unreadableTime: rows.length - timed.length };
@@ -103,6 +103,18 @@ export function analyze({ heartbeatRows, sendRows, tz, store, schedules, days = 
   }
   out.slots = slotRows; out.slotProposalCounts = Object.fromEntries(proposedCount);
 
+  // Rows that are hard to classify (every class except scheduled_off), grouped by shape: 元の行番号 and local time only, so the
+  // client can read the actual text in its own sheet. Up to 40 rows per shape (first and last 20 when more).
+  const hard = new Map();
+  for (const r of timed) {
+    if (r.cls === 'scheduled_off' || r.cls === 'blank') continue;
+    const k = `${r.cls} | ${r.shape}`;
+    if (!hard.has(k)) hard.set(k, []);
+    hard.get(k).push(`${r.row ?? '?'}@${dayOf(r.at).slice(5)} ${hhmm(r.at)}`);
+  }
+  out.hardRows = [...hard.entries()].sort((a, b) => b[1].length - a[1].length)
+    .map(([k, list]) => ({ shape: k, count: list.length, rows: list.length > 40 ? [...list.slice(0, 20), '…', ...list.slice(-20)] : list }));
+
   const dailyRows = [];
   if (sends.length) {
     for (const day of [...dayList].reverse()) {
@@ -145,6 +157,10 @@ function print(o) {
   console.log('\n[5] PROPOSED reading per scheduled patrol slot (window = scheduled .. +slot_deadline_min). NOT used by the dashboard.');
   console.log(table(['business day', 'slot', 'rows in window', 'result rows', 'offset', 'MEAT/IN', 'proposed', 'basis'], o.slots));
   console.log(`    proposed counts: ${JSON.stringify(o.slotProposalCounts)}`);
+  if (o.showRows) {
+    console.log('\n[7] Hard-to-classify rows by shape: 元の行番号@MM-DD HH:MM (read the actual text in the sheet itself)');
+    for (const h of o.hardRows) console.log(`  ${h.count} x ${h.shape}\n      ${h.rows.join(', ')}`);
+  }
   if (o.daily.length) {
     console.log('\n[6] Daily report evidence (送信ログ OWNER / ALL rows in daily_time .. +daily_deadline_min). NOT used by the dashboard.');
     console.log(table(['business day', 'daily', 'OWNER rows', 'first OK', 'ALL rows', 'OWNER rows that day', 'reading'], o.daily));
@@ -169,6 +185,7 @@ if (isMain(import.meta.url)) {
         store, schedules: live.cfg.adapter.schedules, label: `LIVE View-only Copy, read ${formatIso(live.copyReadAt)} (reader account, GET only)` };
     }
     const o = analyze({ ...input, days: a.days ? Number(a.days) : null });
+    o.showRows = !!a.rows;
     print(o);
     writeJson(a.json, o);
   } catch (e) {

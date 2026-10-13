@@ -26,7 +26,7 @@ try {
   process.exit(1);
 }
 
-const keyNote = { not_configured: 'no key configured (NIKUSHO_READER_KEY_FILE)', file_not_found: 'key file not found at NIKUSHO_READER_KEY_FILE - save the service-account JSON there' };
+const keyNote = { not_configured: 'no key configured (NIKUSHO_READER_KEY_FILE or NIKUSHO_READER_KEY_JSON)', file_not_found: 'key file not found at NIKUSHO_READER_KEY_FILE - save the service-account JSON there' };
 console.log(`Reader account: ${cfg.readerKey ? `${cfg.readerKey.clientEmail}   <- the client shares both sheets with this address (Viewer)` : `(${keyNote[cfg.readerKeyStatus]})`}`);
 console.log(`Copy store: ${cfg.adapter.store}   copy time zone: ${cfg.adapter.timezone ?? '(not set: only ISO timestamps with an offset are accepted)'}`);
 const r = await live.load();

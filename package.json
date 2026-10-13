@@ -15,6 +15,7 @@
     "demo:snapshot": "node scripts/build-demo-snapshot.js",
     "diag:heartbeat": "node --env-file=.env scripts/analyze-heartbeat.js",
     "diag:reconcile": "node --env-file=.env scripts/reconcile.js",
-    "diag:timing": "node --env-file=.env scripts/timing-probe.js"
+    "diag:timing": "node --env-file=.env scripts/timing-probe.js",
+    "drill:outage": "node scripts/outage-drill.js"
   }
 }

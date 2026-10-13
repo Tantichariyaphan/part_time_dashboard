@@ -338,9 +338,40 @@ Change:
 - UI: strip 「実データに接続できていません：<state>（<reason>） ｜ 表示できるデータはありません（モック・デモは表示しません）」 on the live entry
   when the copy is not CONNECTED/PARTIAL (`public/app/components/shell.js`); the 未接続 card text no longer says "Phase 2" (it is also
   shown for Bangkok when the source is down).
-- `vercel.json`: `maxDuration: 60` for the entry. The production reader bounds the token request and each of the three sequential Sheets requests to 10 seconds, so a cold-read failure returns its safe state within that cap.
+- `vercel.json`: `maxDuration: 60` for the entry. Every Google request of a deployed dashboard (token + Sheets GETs) has a 10 s limit
+  (`PRODUCTION_READ_TIMEOUT_MS`): one read is at most 4 sequential waits (token, then 3 GETs per file, files in parallel) = 40 s < 60 s,
+  so a stalled Google API becomes ERROR `token_unavailable` / a reader code instead of a platform time-out (LIVE-10, LIVE-11).
+- Key variables: `NIKUSHO_READER_KEY_JSON` (hosted; Vercel *Sensitive*) wins over `NIKUSHO_READER_KEY_FILE` (laptop). Missing key →
+  `reader_key_not_configured`; a FILE path that does not exist (always the case on Vercel) → `reader_key_file_not_found` (LIVE-9).
+- `.vercelignore` (new): `.env`, `.env.*`, `config/allowlist.json`, `config/reader-key*.json`, `*.key.json`, `secrets/`,
+  `Claude outputs/`, the client sample folders — never uploaded by `vercel deploy` (LIVE-12).
 - Unchanged: mock fixtures, the demo snapshot and `/demo/`, the read-only API, sign-in and allowlist, the copy contract check.
-- Tests: `tests/live-only.test.js` LIVE-1 … LIVE-8; `tests/vercel.test.js` now composes the server like the Vercel entry. 210 tests.
+- Tests: `tests/live-only.test.js` LIVE-1 … LIVE-12; `tests/vercel.test.js` now composes the server like the Vercel entry.
+
+### 11.1 Outage drill on a test connection (`scripts/outage-drill.js`)
+
+Client direction (2026-10-13): measure refresh and outage detection, **without stopping production polling**, by reproducing the outage
+on a test connection. The drill builds a synthetic View-only Copy (Data Contract v1 columns, invented rows) behind an in-process fake of
+the Sheets API, and runs the dashboard's real path on it: `createSheetsReader` (GET, time limit) → contract check → transform →
+`createCopyAdapter` (production read interval 60 s) → freshness rule → `createApi` (signed-in viewer). The test copy imitates the
+client's Copy Script (every 5 min: one new row, `meta.last_read_at` = now). Phases: normal (latency of each new row to the API), outage
+(time to `freshness.state = stopped`), recovery (time to normal).
+
+| Scenario | What is broken | Fast-clock result (logic only) |
+|---|---|---|
+| `copy-stops` | `meta.last_read_at` stops advancing (TV21) | 更新停止 21 min after the last good copy read (19 min after the drill's outage moment); normal 1 min after restore |
+| `access-lost` | Sheets API 403 (share removed) | 更新停止 on the next read (≤ 1 min), state ERROR; normal 1 min after restore |
+| `api-timeout` | Sheets API never answers | ERROR after the 10 s request limit, 更新停止 ≤ 1 min; normal 1 min after restore |
+| `bad-contract` | `発言者` column removed from `ログ` | contract violation → 更新停止 ≤ 1 min; normal 1 min after restore |
+
+Finding (`copy-stops`): the banner rule (REQ §6: normal while `generated_at` ≤ 20 min old) and TV19/TV21 ("更新停止 within 20 min")
+leave no margin. Detection is 20 min + one adapter read (≤ 1 min) + one page refresh (≤ 1 min) after the **last good copy read**;
+measured from the first missed Copy Script run (last good read + 5 min) it is ≈ 16–17 min. Which moment TV21 counts from is a client
+question (client-response §6, T-11); the threshold is not changed without that answer.
+
+Limits: fast clock proves the logic, not timing (`--clock real` takes ≈ 35 min per scenario); the fake API has no network latency; the
+Copy Script, the source sheet and the Takatsuji notice (not built: Q-02, Q-47) are not covered.
 
 Not verified: the deployed site has not been redeployed with this change and has no source variables; nothing here proves live data on
 the deployed API or UI. See `TEST_REPORT.md` §3 (L9).
+
