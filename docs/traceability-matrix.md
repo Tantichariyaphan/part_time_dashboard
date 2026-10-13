@@ -149,8 +149,24 @@ the client's real copy; TV9 / TV24 remain type-A tests on real data.
 | Copy `meta` → banner; unknown status not given a meaning | CONN §8.2; Q-09, Q-50 | transform.js → existing `freshness.js` | COPY-19, COPY-20 | IMPLEMENTED (proposed derivation) |
 | `AI質問追跡` rows; gap since 10/5 23:36 never read as zero | CONN §0-15; Q-52 | transform.js, copyContract `COPY_SOURCE_LIMITS`, view models ①④⑦ | COPY-22 | PARTIAL |
 | Run status not derived; `AI=scheduled-off` unclassified | CONN §0-16, §0-17; Q-49 | `src/domain/runs.js` (`statusUnconfirmed`), metrics.js, ①②⑤⑦ | COPY-23 | BLOCKED by Q-49 (shown "状態未判定") |
-| Heartbeat Sheet as a separate source; NOT_CONNECTED when unavailable | CONN §0-18; REQ §5-3 | copyAdapter.js, validate.js | COPY-24, COPY-25 | IMPLEMENTED; live NOT_CONNECTED (Q-48) |
+| Heartbeat Sheet as a separate source; NOT_CONNECTED when unavailable | CONN §0-18; REQ §5-3 | copyAdapter.js, validate.js | COPY-24, COPY-25 | IMPLEMENTED; live CONNECTED 2026-10-13 (Q-48 closed) |
 | Reader account only; ids from server config; browser cannot choose a file; GET only | CONN §0-3; REQ §7-2, §7-5 | sheetsReader.js, `server/source/config.js`, `server/index.js` | READER-1…6, CONFIG-1, CONFIG-2, SERVER-1, SERVER-3, security.test | IMPLEMENTED; account itself **BLOCKED (Q-48)** |
 | Real-data adapter refused behind the dev gate | REQ §7-6 | `server/auth/gate.js` (unchanged) | SERVER-2 | IMPLEMENTED |
 | ≤10 min new row → screen | REQ §5 | read at most once a minute; Transform once per read | COPY-21, COPY-30 | IMPLEMENTED on PIATEC side; TV9 BLOCKED |
 | Tests carry no client data | REQ §7-9 | — | COPY-28 | IMPLEMENTED |
+
+## 9. Read-only diagnostics and proposals (2026-10-13) — requirement → script → test
+
+Diagnostics read the real copy with the dashboard's reader account (GET only) and print counts/codes only; their real-data results are
+recorded in `docs/acceptance-report.md` §1a once run. Proposals are questions to the client, not implemented rules.
+
+| Requirement | Source | Code / document | Test | Status |
+|---|---|---|---|---|
+| PIATEC proposes the `心拍.結果` interpretation table; client confirms | REQ §5-1, §5-4 #2; Q-15, Q-49 | `docs/run-status-proposal.md`; `scripts/analyze-heartbeat.js`, `scripts/lib/heartbeatPatterns.js` | DIAG-1, DIAG-2, DIAG-3 | DRAFT (sample 10/5 analysed; live 722 rows: 239 not recognised → revise); **not implemented** |
+| No status from `AI=scheduled-off`, a machine heartbeat alone, or standby data; unknown stays not judged | REQ §5-1, §6-①; CONN §14 #5 | heartbeatPatterns `proposeSlot`; dashboard unchanged (`runs.js`) | DIAG-2, DIAG-8, COPY-23 | IMPLEMENTED (diagnostic only) |
+| Screen numbers equal Source for 7 days (counts, text, send results, candidate vs confirmed) | REQ §8 TV1, TV8, TV20 | `scripts/reconcile.js` | DIAG-5, DIAG-6 | live 2026-10-07 … 10-13: 68 matched / 0 mismatches (view-model level) |
+| Meta self-row kept; 11 rounded ids shown once as `ROW-<n>` | CONN §4.2, Q-50; DM §6.1 | reconcile.js (checks), validate.js / transform.js (behaviour) | DIAG-5, COPY-5b, COPY-10b, COPY-39 | IMPLEMENTED |
+| ≤10 min source → screen; ≤20 min stop detection; last-updated display; dashboard data = data read | REQ §5, §6; TV9, TV19, TV21 | `scripts/timing-probe.js`; `docs/architecture.md` §7.4 | DIAG-7 | one live sample only (TV9 unproven); notice not built (Q-02) |
+| Screen Data in client-named storage; cache separate; rebuildable, auditable | REQ §5-3, §7-3; Q-54 | `docs/architecture.md` §8a (proposal only) | — | GAP — awaiting the client's location and permission decision |
+| Diagnostics read exactly what the server reads | REQ §7-2 | `createLiveReaders()` in `server/index.js` (shared by `chooseLiveAdapter`) | SERVER-1…3, READER-1…6 | IMPLEMENTED |
+| REQ §3 #7 `CHANGES.md`, `TEST_REPORT.md` (TV1–TV25 with screenshots) | REQ §3 #7 | `/CHANGES.md`, `/TEST_REPORT.md` | — | PRESENT; screenshots **missing** (`TEST_REPORT.md` §5) |

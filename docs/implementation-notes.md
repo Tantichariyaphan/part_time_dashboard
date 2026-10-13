@@ -181,13 +181,14 @@ None functionally. Comments that said PIATEC builds the copy were corrected (`sr
 
 ### 7.4 Next implementation work (in order)
 
-1. Create the reader account (in an environment acceptable to the client) and send its e-mail on the client's 10/7 page (Q-48); confirm in writing that vercel.app is prototype hosting only.
+1. ~~Create the reader account~~ — done; both files CONNECTED 2026-10-13 (Q-48). Still owed: written confirmation that vercel.app is prototype hosting only.
 2. Send connection spec v1 (this file set) and the missing-record list v1; ask Q-47, Q-49 … Q-53 and Q-12 (timestamp zone, incl. the zone of the column-6 `HH:MM`) with two options + recommendation each.
 3. Once the reader account and its environment are decided (Q-48, Q-01): add its token source and pass it to `chooseLiveAdapter(env, { getAccessToken })` — the only missing piece in code. Then run TV9 / TV24 against the real copy (type A, judged by the client).
-4. After Q-49: run status from the copy (no rule before the client's announcement).
+4. After Q-49: run status from the copy (no rule before the client's announcement). PIATEC's proposal for the client to approve: `docs/run-status-proposal.md` (§9 below).
 5. After Q-52: lift or re-date `COPY_SOURCE_LIMITS.questionsIncompleteFrom` according to the client's fix/backfill answer.
 6. After Q-17: resend tie-up. (Candidate answers: done 10/13 by the REQ §5-1 rule, see §8.4; confirmed answers need evidence records, M-2.)
 7. Decide hosting with the client (Q-01).
+8. After Q-54: client-owned Dashboard Data store + separate writer identity (`docs/architecture.md` §8a). Nothing is built before the client names the location and grants the permission.
 
 ## 8. View-only Copy connector (built 2026-10-07)
 
@@ -284,3 +285,39 @@ validate ≈0.2 s + transform ≈0.45 s per read.
 - A numeric `messageId` the sheet rounded without an exponent cannot be detected (Q-12: the client should keep it as text). Rows whose ID is visibly rounded are shown by row number (above); whether the client can restore the real IDs is open.
 - Resend rows with their own `messageId` are counted as separate messages until Q-17 says how resends are tied.
 - Possibly-related answers are a rule, not evidence: a later unrelated message from the same person, or one written to another open question, is still listed as "関連の可能性（未確認）" (REQ §5-1 accepts this). If the live `AI質問追跡.who` does not use the same display name as `ログ.発言者`, no candidates appear — `check:sources` shows the count so this can be checked without printing names.
+- Screen Data is held in memory only (rebuilt from each copy read); the REQ §5-3 / §7-3 client-owned store does not exist yet — `docs/architecture.md` §8a, Q-54.
+
+## 9. Read-only diagnostics (2026-10-13)
+
+Three scripts give evidence on the real copy without touching anything: they read with the dashboard's own reader account and
+contract checks (`createLiveReaders()` in `server/index.js`, shared with `chooseLiveAdapter()` so a diagnostic reads exactly what the
+server reads), make GET requests only, and print counts, business days, times, codes, digit-masked shapes and `元の行番号` — never
+message text, `結果` free text, names, `messageId`s, recipient labels/keys, spreadsheet ids or key material. `--json <file>` saves the
+same counts (keep it under the git-ignored `Claude outputs/`).
+
+| Command | Script | Evidence for | What it compares / measures |
+|---|---|---|---|
+| `npm run diag:heartbeat -- [--days 14]` (live) or `node scripts/analyze-heartbeat.js --csv … --sends … --tz Asia/Bangkok` (local export) | `scripts/analyze-heartbeat.js`, `scripts/lib/heartbeatPatterns.js` | REQ §5-1 / §5-4 #2 proposal, Q-49 | classes and shapes of `心拍.結果`, hour × class, cadence and gaps, send columns vs `送信ログ`, the PROPOSED reading per scheduled slot and daily report (`docs/run-status-proposal.md`; not used by the dashboard) |
+| `npm run diag:reconcile -- [--days 7] [--end YYYY-MM-DD]` | `scripts/reconcile.js` | TV1 (message/question/send parts), TV8, TV20 | one read → SOURCE rows; the server's adapter on that same read → TRANSFORMED Screen Data; view models → SCREEN (= /api JSON). Per business day: rows, distinct messages, 再送/取消/ID破損, missing/extra/duplicate keys, text identical character by character (TV8), Bot replies shown under their message, send results, failed/unknown on ⑤, questions and candidate/confirmed answers, ⑦ 7-day totals; copy `meta` incl. the self-row, Dashboard `meta` = copy `last_read_at`; the 11 rounded ids shown once as `ROW-<n>`; a tab blocked by the contract check is reported as a difference, never hidden |
+| `npm run diag:timing -- [--minutes 60] [--interval 60]` | `scripts/timing-probe.js` | TV9 (sample windows), TV19/TV21 display part, last-updated display | every poll: copy `last_read_at`/`updated_at`/`status` per tab, newest row time, first time each new row is visible to the reader, the server adapter's own read and banner, the banner expected from the raw `meta`; summary: copy cadence, row-time → visible delay, rows possibly over 10 min, max copy age, banner consistency, whether a stop was observed |
+
+Not inspected by any script: the running server's in-memory cache (the scripts make their own reads), the Original Records (never
+visible to PIATEC), the Takatsuji notice (not built). The scripts never fix anything: a difference is printed as `MISMATCH`.
+Tests: `tests/diagnostics.test.js` (DIAG-1 … DIAG-8, synthetic rows only), incl. "no free text / names / ids in the output" and
+"the dashboard still judges no run status".
+
+Results on real data (run on PIATEC's laptop 2026-10-13, outputs pasted into the working session; raw files not in the repository):
+`diag:reconcile` 10/7–10/13 — 68 checks matched, 0 mismatches (1 question, 0 candidate answers, 9 Bot replies; rates unconfirmed);
+`diag:heartbeat` — 722 rows, 24 STOP-class, 239 `other`, 130 unparsed segments (the proposal's parser does not cover the live
+shapes yet); `diag:timing` — one sample only. Per-TV use and limits: `TEST_REPORT.md` §3–§4.
+
+## 10. Delivery status and handover (2026-10-13)
+
+`TEST_REPORT.md` (TV1–TV25: PASS 5, PARTIAL 10, FAIL 0, BLOCKED 9, NOT TESTED 1) and `CHANGES.md` are the REQ §3 #7 deliverables.
+Open gaps (candidate answers on live data, Screen Data storage, run-status approval, timing, alert delivery, client-owned hosting,
+Nagoya configuration, resend linkage) and the prioritized handover checklist (developer / Yuki / client, with the blocker and the
+evidence that closes each item) are kept in **one place only**: `TEST_REPORT.md` §6–§7.
+
+Not built and not to be built before the client's answer: alert delivery (Q-02, Q-47), the Dashboard Data store and its writer
+identity (Q-54), run-status reading (Q-49), installation in the client's environment (Q-01).
+

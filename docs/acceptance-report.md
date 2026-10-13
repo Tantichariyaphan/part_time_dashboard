@@ -3,6 +3,8 @@
 Scope: Dashboard skeleton with synthetic data (`devmock`, `demo`, `none`). **Not production. No real data was read; PIATEC never accesses the Original Records.**
 
 > **2026-10-07 client update:** the client builds and runs the Copy Script; PIATEC will read the client's View-only Copy with a reader account (`docs/connection-spec.md` §0). "Requires real Source" below now means **requires reader access to the client's View-only Copy** (blocked on the reader account, Q-48). Verdicts are unchanged — nothing new has been executed against real data.
+> **2026-10-13:** the reader account exists and both client files read as CONNECTED (`npm run check:sources`). Read-only diagnostics were added (`docs/implementation-notes.md` §9) and run on the real copy; results are in §1a.
+> **Current TV1–TV25 statuses are in `/TEST_REPORT.md`** (REQ §3 #7 deliverable; PASS / PARTIAL / FAIL / BLOCKED / NOT TESTED with LIVE / SYN / MAN evidence). The verdict column of §1 below is the **pre-source verdict of 2026-10-07**, kept as the synthetic-evidence log; where it differs, `TEST_REPORT.md` is current (TV22, TV25 reclassified to PARTIAL; UNCONFIRMED items mapped to PARTIAL).
 Contract documents (`Claude.md`, `docs/architecture.md`, `docs/connection-spec.md`, `docs/data-mapping.md`) were not modified (also not by the 2026-10-05 Auth Prototype).
 Source of Truth: Requirement 2026-10-02 draft 5 (REQ). Nothing here is client acceptance (REQ §8: the client judges pass/fail).
 
@@ -13,12 +15,12 @@ Source of Truth: Requirement 2026-10-02 draft 5 (REQ). Nothing here is client ac
 * **UNCONFIRMED / Q-xx** — the contract is silent, ambiguous, or contradictory for part of the criterion.
 * **FAIL** — none remain open. Defects found during this review were fixed (section 6) and re-tested.
 
-Evidence commands: `npm test` (178 tests: `tests/acceptance.test.js`, `edge.test.js`, `security.test.js`, `auth.test.js` (26, added 2026-10-05), `vercel.test.js` (6), `sample-shape.test.js` (7, added 2026-10-06), `copy.test.js` (32) and `copy-reader.test.js` (11) for the View-only Copy connector (added 2026-10-07, synthetic data only), plus earlier suites) and
+Evidence commands: `npm test` (202 tests on 2026-10-13, incl. `diagnostics.test.js` (8) for the read-only diagnostics; earlier count 178: `tests/acceptance.test.js`, `edge.test.js`, `security.test.js`, `auth.test.js` (26, added 2026-10-05), `vercel.test.js` (6), `sample-shape.test.js` (7, added 2026-10-06), `copy.test.js` (32) and `copy-reader.test.js` (11) for the View-only Copy connector (added 2026-10-07, synthetic data only), plus earlier suites) and
 `PLAYWRIGHT_MODULE=… node scripts/ui-review.mjs <outDir>` (headless Chromium, in-process synthetic servers).
 
 ## 1. TV1–TV25
 
-| TV | Type | Verdict | Executed evidence / why |
+| TV | Type | Pre-source verdict (2026-10-07; current: `TEST_REPORT.md`) | Executed evidence / why |
 |----|------|---------|-------------------------|
 | TV1 | A | **BLOCKED** — requires real Source | Needs 7 days of real registry. Precondition run: ⑦ figures are produced only from registry rows by the REQ §6-⑦ formulas (`edge.test.js`, `answers.test.js`). |
 | TV2 | B | **BLOCKED** — requires real data (test sheet + the client's View-only Copy) | No real sheet is read (reader account pending, Q-48). Precondition: the copy connector re-reads each file at most once a minute and rebuilds from it (≤1 min added; mock/demo recompute per request); the page re-fetches every 60 s on the live entry; no write route exists (405). Timing budget belongs to Q-08. |
@@ -41,12 +43,30 @@ Evidence commands: `npm test` (178 tests: `tests/acceptance.test.js`, `edge.test
 | TV19 | A | **BLOCKED** — requires real Source; notification **UNCONFIRMED / Q-02, Q-03** | Precondition: red "stopped" banner when newest `generated_at` > 20 min (19/20 normal, 21 stopped). Alert is **not implemented** (channel Q-02; contact Q-47). After 10/7 a stopped copy is seen through copy `meta` (Q-50). |
 | TV20 | A | **BLOCKED** — requires real Source | Needs `ログ`/`送信ログ`/`AI質問追跡`. |
 | TV21 | A | **BLOCKED** — requires real Source; notification **UNCONFIRMED / Q-02, Q-03** | Same display precondition as TV19. |
-| TV22 | B | **PASS** | Candidate and unrecognized links never counted as confirmed; only-candidate data → response rate and time-to-answer "not concluded"; candidate count shown separately. The registry builder's "0 wrongly confirmed links" is not testable here (Q-19, Q-22); the dashboard never infers links. |
+| TV22 | B | **PASS** (now PARTIAL — `TEST_REPORT.md`) | Candidate and unrecognized links never counted as confirmed; only-candidate data → response rate and time-to-answer "not concluded"; candidate count shown separately. The registry builder's "0 wrongly confirmed links" is not testable here (Q-19, Q-22); the dashboard never infers links. |
 | TV23 | B | **UNCONFIRMED / Q-20** | Request accepted / unknown / failed render as three distinct labels and no delivered/read wording exists anywhere in the UI strings. The second display ("not sent because of duplicate-send prevention") has no Screen Data value (`result` ∈ sent/unknown/failed) — source unknown (Q-20). |
 | TV24 | A | **BLOCKED** — requires reader access to the client's View-only Copy (Q-48); layout fixed by Data Contract v1 (Q-10, Q-13 closed 10/7); PIATEC's copy contract check IMPLEMENTED and tested on synthetic copies (COPY-3…COPY-11, COPY-31, READER-5) — TV24 itself inspects the real copy and is judged by the client | Precondition: Screen Data columns contain no `userId`/`宛先ID`/`画像URL`/`グループID`; only the 9 documented tabs; groups in fixtures limited to the five; no API response contains URLs or LINE-style ids. The dashboard does not filter groups itself (REQ: filter at the copy step). |
-| TV25 | B | **PASS** | Day before the schedule change expects 2 slots, day of change 3 (`schedules` history); `running` past deadline → `unknown`; stop of the monitored machine → production red on ① + scheduled runs without rows become no_row. Actual 17:00 start date confirmed 10/7: first 17:00 run 2026-10-02 17:00 (Q-16 closed); reading run status after the 10/5 23:36 change is UNCONFIRMED (Q-49). |
+| TV25 | B | **PASS** (now PARTIAL — `TEST_REPORT.md`) | Day before the schedule change expects 2 slots, day of change 3 (`schedules` history); `running` past deadline → `unknown`; stop of the monitored machine → production red on ① + scheduled runs without rows become no_row. Actual 17:00 start date confirmed 10/7: first 17:00 run 2026-10-02 17:00 (Q-16 closed); reading run status after the 10/5 23:36 change is UNCONFIRMED (Q-49). |
 
-Totals: PASS 7 (TV5, 10, 11, 13, 14, 22, 25) · PASS-B/BLOCKED-A 1 (TV17) · UNCONFIRMED 2 (TV12, TV23) · BLOCKED 15 · FAIL 0.
+Pre-source totals (2026-10-07): PASS 7 (TV5, 10, 11, 13, 14, 22, 25) · PASS-B/BLOCKED-A 1 (TV17) · UNCONFIRMED 2 (TV12, TV23) · BLOCKED 15 · FAIL 0.
+Current totals (2026-10-13, `TEST_REPORT.md` §2): PASS 5 · PARTIAL 10 · FAIL 0 · BLOCKED 9 · NOT TESTED 1.
+
+## 1a. Real-data evidence (2026-10-13)
+
+Recorded in `TEST_REPORT.md` §3 (L1–L8) and used there per TV. In short, from the outputs pasted on 2026-10-13 (raw files are not in
+the repository):
+
+- `npm test` 202/202 on PIATEC's laptop.
+- `check:sources`: copy CONNECTED (`ログ` 7,515 / `送信ログ` 237 / `AI質問追跡` 30 / `心拍` 720 rows, `meta` ok incl. self-row);
+  Heartbeat Sheet CONNECTED (`beats` 1,351, `alerts` 7). Contract check: 0 findings; 11 rounded `messageId`s flagged.
+- `diag:reconcile` for business days 2026-10-07 … 10-13: **68 checks matched, 0 mismatches**; 7-day figures: 1 question, 0 candidate
+  answers, 9 Bot replies, patrol/daily rates unconfirmed. The view model was computed from the same read; the running server's
+  cache and the rendered pages were not inspected.
+- `diag:heartbeat`: 722 rows, 24 STOP-class, 239 `other`, 130 unparsed segments — the run-status proposal does not yet cover the
+  live shapes and stays unapproved and unused.
+- `diag:timing`: one sample only — TV9 (3 days) and real stop detection are unproven.
+
+What each of these can and cannot prove per TV, and the screenshots still missing: `TEST_REPORT.md` §4–§5.
 
 ## 2. UI review (headless Chromium)
 

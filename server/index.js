@@ -46,21 +46,30 @@ export function chooseLiveAdapter(env = process.env, { getAccessToken: injected 
   if (which === 'none') return createNoneAdapter();
   if (which === 'devmock') return createDevMockAdapter({ scenario: env.NIKUSHO_DEV_SCENARIO ?? 'full' });
   if (which === 'copy') {
-    const cfg = loadSourceConfig(env);
-    const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey) : undefined);
-    return createCopyAdapter({
-      config: cfg.adapter,
-      // Two separate readers, one per client file; the same reader account; ids only from server configuration.
-      copyReader: createSheetsReader({
-        spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
-        refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
-      }),
-      heartbeatReader: createSheetsReader({
-        spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
-      }),
-    });
+    const { cfg, copyReader, heartbeatReader } = createLiveReaders(env, { getAccessToken: injected });
+    return createCopyAdapter({ config: cfg.adapter, copyReader, heartbeatReader });
   }
   throw new Error(`NIKUSHO_LIVE_ADAPTER must be one of: devmock, none, copy`);
+}
+
+/**
+ * The two read-only readers of the client's files, built from server configuration only. Shared by the live adapter and the
+ * read-only diagnostics in scripts/ (so a diagnostic reads exactly what the dashboard reads, with the same checks).
+ */
+export function createLiveReaders(env = process.env, { getAccessToken: injected } = {}) {
+  const cfg = loadSourceConfig(env);
+  const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey) : undefined);
+  return {
+    cfg,
+    // Two separate readers, one per client file; the same reader account; ids only from server configuration.
+    copyReader: createSheetsReader({
+      spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
+      refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
+    }),
+    heartbeatReader: createSheetsReader({
+      spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
+    }),
+  };
 }
 
 function send(res, status, body, headers = {}) {

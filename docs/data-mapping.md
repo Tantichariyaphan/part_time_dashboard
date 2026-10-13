@@ -126,6 +126,12 @@ One spreadsheet for Bangkok, continuously written by the GAS that receives/sends
 
 `元の行番号` (copy) / `時刻` / `読んだ行数` (rows read) / `候補数` (candidate count) / `送信MEAT` / `送信IN` / `結果` (free text; values such as `AI=scheduled-off` appear since the 10/5 change — meaning **UNCONFIRMED, Q-49**) / `実行ms` / `gap分`.
 
+Observed in the client's 10/5 sample (98 rows, 9/28–10/4; structure only, `docs/run-status-proposal.md` §2): `結果` is ` / `-separated
+`key=value` segments (`AI=`, `未分析=`, `MEAT=`, `IN=`, `STOP=`, `owner=`); one row per hour at minute :13 from 10:13 to 23:13;
+`AI=scheduled-off` in every non-slot hour; `AI=max-read N件` or `STOP=<code>` exactly once per scheduled slot, 73 minutes after the
+slot. This is **not** a machine heartbeat (that is the Heartbeat Sheet, §5.7). Live copy 2026-10-13: 722 rows, 24 STOP-class, 239 rows
+whose `結果` the sample-based parser does not recognise, 130 unparsed segments — the live shapes differ from the sample (Q-49).
+
 ### 2.5 Group ID → group name (REQ §5-1; applied by the client's Copy Script → `群`)
 
 Decided by the last 6 characters of `グループID`:
@@ -200,6 +206,7 @@ General (CONFIRMED, REQ §5-3):
 - All times stored as `yyyy-MM-ddTHH:mm:ss+07:00` (Bangkok time), for every store.
 - "Today" is the **business day of each store** from `stores.timezone` and `stores.business_day_start`. A phone set to Japan or Thailand time must show the same business day for the same store (TV16). Never use viewer/browser time zone to decide "today".
 - On rebuild, question state and answers must **not** revert to default (§7.4, **Q-23** for mechanism).
+- Storage: REQ requires client-named storage; the current build keeps Screen Data **in memory only**, rebuilt from each copy read. Gap and proposed client-owned store: `docs/architecture.md` §8a (**Q-54**; nothing created or written).
 - Extra columns may be added; existing columns and meanings must not change.
 - Registry rows whose `question_id` / `message_id` / `send_id` / `host` start with `DUMMY-` / `dummy-` are samples: **excluded from all real summaries** (REQ §6). SAMPLE-02 also marks `run_id` with `DUMMY-`; REQ does not list `run_id` → **UNCONFIRMED / ไม่ยืนยัน (Q-28)**.
 
@@ -243,6 +250,9 @@ Bangkok (**CONFIRMED by the client 2026-10-07**, closes Q-16): slots `12:00,22:0
 Rule (REQ): **every scheduled patrol/daily must have exactly one row even if it did not run.** Built from `心拍` and `送信ログ` (REQ §5-1). The interpretation table for the free-text `心拍.結果` is to be **proposed by PIATEC from samples and confirmed by the client within 1 business day** — not yet existing → **UNCONFIRMED / ไม่ยืนยัน (Q-15)**.
 
 > **Source change (client 10/7):** since **2026-10-05 23:36** MEAT/IN questions and replies are sent by the **5-minute polling loop**; the 12:00/17:00/22:00 runs only record reads and decisions and send nothing to staff; `心拍.結果` shows values such as `AI=scheduled-off`. **The client will decide and announce how to read run status (Q-49).** Until then: no status is derived from `AI=scheduled-off`, and runs after 10/5 23:36 stay "ยังไม่ยืนยัน" where the record does not prove a status.
+>
+> **PIATEC proposal (2026-10-13, REQ §5-1 / §5-4 #2):** `docs/run-status-proposal.md` — interpretation table from the 10/5 sample
+> with evidence, limits and questions Q-49a–h. **Not approved and not implemented**: the copy adapter still produces no run rows.
 
 | Column | Meaning | Provenance |
 |---|---|---|
@@ -340,7 +350,7 @@ Link messages to answers **only by keys in the registry**. The Dashboard must ne
 `beats` (production/standby machines write one row every 5 minutes): `received_at`, `host`, `role` (`production`/`standby`), `stores` (comma-separated), `verify` (`PASS`/`FAIL`), `fail_items`, `chatgpt`, `drive`, `g_mounted` (true/false), `disk_free_gb`, `clock_offset_sec`, `text_patrol_at` (last light-check run).
 `alerts`: `at`, `kind` (`silent` = not responding / `recovered` / `fail`), `detail`.
 
-Availability: **ready** (client 10/7); view access is granted once PIATEC's reader account is known (Q-48). Production machine for Bangkok: `snowmaru`. "Light-check operating time (not yet in any sheet)" is a known missing record (see §12). Until the sheet exists, anything depending on it is NOT CONNECTED / UNKNOWN, never normal.
+Availability: **CONNECTED** with the reader account since 2026-10-13 (`check:sources`; Q-48 closed). Machine health only: never used to decide a patrol or daily status, standby rows never used for the production machine (`docs/run-status-proposal.md` §3). Production machine for Bangkok: `snowmaru`. "Light-check operating time (not yet in any sheet)" is a known missing record (see §12). Until the sheet exists, anything depending on it is NOT CONNECTED / UNKNOWN, never normal.
 
 ---
 

@@ -53,4 +53,5 @@ Blank is never 0 · candidate answers are never counted as confirmed · stale/er
 no 0% without evidence · `DUMMY-` ids excluded · business day comes from the store, not the viewer · read-only: no write/rerun/approve/send controls ·
 demo is a separate entry with no toggle.
 
-Verification: `npm test`; `PLAYWRIGHT_MODULE=<path> node scripts/ui-review.mjs <outDir>` (headless Chromium UI review). Results: `docs/acceptance-report.md`, `docs/traceability-matrix.md`.
+Verification: `npm test`; `PLAYWRIGHT_MODULE=<path> node scripts/ui-review.mjs <outDir>` (headless Chromium UI review). Results: `TEST_REPORT.md` (TV1–TV25, current), `CHANGES.md`, `docs/acceptance-report.md`, `docs/traceability-matrix.md`.
+Read-only real-data diagnostics (need `.env` and the reader key; print counts only): `npm run diag:reconcile`, `npm run diag:timing`, `npm run diag:heartbeat` — see `docs/implementation-notes.md` §9.

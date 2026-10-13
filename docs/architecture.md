@@ -68,11 +68,11 @@ No other roles exist in the REQ. Per-store manager permissions are **out of scop
 | L0 | Original Records | Written by the existing system; **never accessible to PIATEC** | existing spreadsheet (client) | CONFIRMED |
 | L1 | Copy Script | Filter at copy time (groups, recipients, columns, sensitive fields); substitute keys `発言者キー`/`宛先キー`; masks accounting/external-group lines in owner reports; copy `meta` with two timestamps; in-place update by `元の行番号`; every 5 min | **built and run by the client** (since 10/7) | CONFIRMED (REQ §5-1; client 10/7) |
 | L2 | View-only Copy | Stores the filtered copy; Data Contract v1; rows from 2026-09-01 | client account; PIATEC reader account = view | CONFIRMED (client 10/7) |
-| L3 | Verify + normalization | copy verified against Data Contract v1 (forbidden fields, groups, duplicates) — tab stops on violation; copy column → Dashboard field (formats, `+07:00` timestamps, group names, `kind`, resend/cancel merge) | PIATEC build — **IMPLEMENTED** (synthetic tests): reader `server/source/sheetsReader.js`, contract check `src/adapters/copy/validate.js`, Transform `src/adapters/copy/transform.js`, adapter `src/adapters/copy/copyAdapter.js` (kind `copy`); live state NOT_CONNECTED until the reader account exists (Q-48) | CONFIRMED rules; see data-mapping §5–§6, implementation-notes §8 |
+| L3 | Verify + normalization | copy verified against Data Contract v1 (forbidden fields, groups, duplicates) — tab stops on violation; copy column → Dashboard field (formats, `+07:00` timestamps, group names, `kind`, resend/cancel merge) | PIATEC build — **IMPLEMENTED** (synthetic tests): reader `server/source/sheetsReader.js`, contract check `src/adapters/copy/validate.js`, Transform `src/adapters/copy/transform.js`, adapter `src/adapters/copy/copyAdapter.js` (kind `copy`); live state CONNECTED since 2026-10-13 (reader account in place) | CONFIRMED rules; see data-mapping §5–§6, implementation-notes §8; read-only diagnostics implementation-notes §9 |
 | L4 | Validation | Reject/flag malformed rows, missing required columns, broken JSON; detect sensitive fields that should never be present; schema/`contract_version` check | PIATEC build | CONFIRMED needs (TV13, TV24); copy side IMPLEMENTED in L3 (fail closed per tab); Screen Data side `src/normalize/validate.js` |
 | L5 | Domain logic | Run status, question state, answer candidate, Bot-reply match, business day, schedule history, heartbeat, freshness, 7/30-day figures, Phase capability | PIATEC build | CONFIRMED rules |
-| L6 | Screen Data | 7-tab registry (REQ §5-3) + `meta` freshness | client-named storage | CONFIRMED |
-| L7 | Cache | Speed only; derived from Screen Data; deletable and rebuildable (TV7); **no bypass of authorization** | client environment | CONFIRMED principle; mechanism **Q-05** |
+| L6 | Screen Data | 7-tab registry (REQ §5-3) + `meta` freshness | client-named storage | CONFIRMED requirement; **built in memory only (gap, §8a; Q-54)** |
+| L7 | Cache | Speed only; derived from Screen Data; deletable and rebuildable (TV7); **no bypass of authorization** | client environment | CONFIRMED principle; mechanism **Q-05**; today the in-memory rebuild (≤ 1 read/min) is both Screen Data and cache (§8a) |
 | L8 | Viewer check | Authentication then allowlist **on the server** | client environment | CONFIRMED principle; method **Q-01** |
 | L9 | API | Read-only delivery of Screen Data to authorized viewers; no write operations; `GET`-style reads only | client environment | read-only is CONFIRMED (REQ §6 "ไม่เขียนข้อมูลจากหน้าจอ"); concrete endpoints/technology **UNCONFIRMED (Q-01)** — none are defined |
 | L10 | UI | 7 pages; Japanese UI; portrait phone; plain-text rendering | client environment | CONFIRMED |
@@ -103,7 +103,8 @@ Single-direction data flow with **upstream wins** (REQ §7-3): Original Records 
   and report evidence (tab, `元の行番号`), and keeps receiving fault reports for its own parts. Never hand install/recovery work to Maru (REQ §2).
 - Filtering at copy time by the client: groups MEAT・IN・ALL・MANAGEMENT・PHOTO only; the five groups and `OWNER` as recipients; no `userId`,
   `宛先ID`, `画像URL`; no LINK; no other tabs (details: connection-spec §4–§5). PIATEC verifies and stops a tab that violates it.
-- Reader account status: PIATEC must create it and send its e-mail to the client — **pending (Q-48)**.
+- Reader account status: created and shared by the client; both files read as CONNECTED on 2026-10-13 (`npm run check:sources`).
+  Its scope is `spreadsheets.readonly`. A **writer** identity for Dashboard Data does not exist (§8a, Q-54).
 
 ---
 
@@ -180,6 +181,83 @@ Must also detect: the client's Copy Script stopped (Original Records → View-on
 
 PIATEC recovers without Maru acting. Before handover PIATEC installs, verifies the connection and demonstrates recovery from: copy deleted, read permission re-granted, screen fault (REQ §7-10, TV18). A named responsible person and contact channel in writing are required. Post-delivery: receive report → root cause → recover → confirm (REQ §2).
 
+### 7.4 What the current build does for the time requirements, and what is proven (2026-10-13)
+
+Path as built: client GAS writes the Original Records → client Copy Script every 5 min (copy `meta.last_read_at` / `updated_at`)
+→ dashboard server reads the copy **at most once a minute, on request** (`src/adapters/copy/copyAdapter.js`) and rebuilds Screen Data
+in memory → pages re-fetch every 60 s. Dashboard `meta.generated_at` = `last_success_at` = `source_through` = copy `last_read_at`
+(proposed derivation, Q-09).
+
+| Requirement | Design bound (not a measurement) | Evidence so far | Missing evidence |
+|---|---|---|---|
+| Source row → screen ≤ 10 min (REQ §5, TV9) | ≈ wait for the next copy run (≤ 5 min) + copy run time (unknown) + server read interval (≤ 1 min) + page refresh (≤ 1 min) | one `diag:timing` sample on 2026-10-13 (not evidence for a 3-day requirement). Synthetic: one read per minute, rebuild per read (`copy.test.js` COPY-30) | `npm run diag:timing` windows on real data (`scripts/timing-probe.js`: row time → first visible to the reader account, copy cadence); TV9 needs 3 consecutive real days |
+| Stopped update detected ≤ 20 min (REQ §6, TV19, TV21) | banner turns "หยุดอัปเดต" when now − copy `last_read_at` > 20 min or copy `status` ≠ `ok` — computed on every request, so it does not wait for the next read. If the copy stops right after a read, the banner flips 20 min after that read (≤ 15 min after the next run was due) | unit tests (exactly 20 min normal, 21 stopped: `freshness.test.js`, `acceptance.test.js` TV19/TV21 precondition; DIAG-7 for the probe); the probe compares the banner with the raw copy `meta` on every poll | a real stop has never been observed; TV19/TV21 need a deliberate stop on a **test copy** (REQ §7-9). The Takatsuji notice is **not built** (Q-02, Q-47); nothing watches the dashboard server itself (TV25) |
+| Last-updated time shown correctly (REQ §6 common rules) | top banner = oldest copy `last_read_at` of the four tabs and minutes since it | the probe recomputes it from the raw read and reports any difference; it also flags rows whose time is later than `last_read_at` (zone/clock error, Q-12) | real windows |
+| Dashboard uses the data actually read | the screen is rebuilt from exactly one copy read (memoised per read) | `scripts/reconcile.js` feeds one read through the server's adapter and compares SOURCE → TRANSFORMED → SCREEN — **live 2026-10-07 … 10-13: 68 checks matched, 0 mismatches**; the probe checks that the dashboard's own read and an independent read carry the same copy version | the running server's cache and the rendered pages are not inspected by either tool |
+
+`CONNECTED`, row counts or one successful page view are **not** evidence for these rows (they show the read works, not timing).
+
+---
+
+## 8a. Screen Data storage — gap and proposal (awaiting the client's decision; nothing built)
+
+**Requirement.** REQ §5-3: PIATEC's process builds Screen Data in the §5-3 format and **stores it in client-named storage (e.g. a
+spreadsheet)**; the client's tester compares that storage with the source. REQ §7-3: no data held only by PIATEC; copy, Screen Data,
+settings and resume points may be kept in client-named storage; rebuild order Source → copy → Screen Data → cache; upstream wins.
+REQ §2: PIATEC writes only to the read copy and the Screen Data storage, both client-named. REQ §9: no move to a database.
+Client 10/7: Dashboard Data / Ledger is stored in the client's account (connection-spec §0-9).
+
+**Gap (current build).** Screen Data exists **only in the dashboard server's memory**, rebuilt from each copy read (≤ 1 read/min).
+Consequences: (1) there is no Screen Data store for the client's tester to compare (TV1 compares *registry* with screen; TV20 can be
+done against the copy, `scripts/reconcile.js`); (2) TV7 ("delete all screen cache → rebuilt from the registry") has no registry to
+rebuild from — today the "cache" *is* the rebuild; (3) any future state that cannot be recomputed from the copy (Phase 2
+`acked`/`answered`/`closed`) would have nowhere to live except PIATEC memory, which REQ §7-3 forbids; (4) the in-memory result is
+derived from the copy, not from Screen Data, so the REQ cache order is not followed. Today nothing is lost on restart because every
+Phase 1 value is recomputable from the copy (questions are `waiting`/`candidate` only; rebuild is deterministic — COPY-40).
+
+**Proposed architecture (option A, recommended).**
+
+```text
+View-only Copy (client) ──read (reader identity, Viewer)──▶ Transform job (client environment, Q-01)
+                                                              │ full rebuild, deterministic, only when the copy version changed
+                                                              ▼
+                      Dashboard Data spreadsheet (client Drive, client-owned; REQ §5-3 7 tabs: meta, stores, schedules, runs,
+                      questions, sends, messages) ◀── write (writer identity, Editor on THIS file only)
+                                                              │ read (reader identity, Viewer)
+                                                              ▼
+                      dashboard server: in-memory cache (≤ 60 s, deletable, never persisted) ──▶ API ──▶ 7 pages
+```
+
+- **Write unit:** one full rebuild per copy version (copy `meta.last_read_at` of the four tabs). Data tabs are written first, `meta`
+  last, so a half-written rebuild is never shown as fresh: the screen reads `meta` first (REQ §5-3) and a failed write leaves the old
+  `generated_at`, which ages into "หยุดอัปเดต". Re-running with the same copy version writes the same rows (idempotent; no
+  duplicates — TV19).
+- **Audit:** extra `meta` columns (REQ allows extra columns): copy version used (`copy_last_read_at`), row count and a SHA-256 of
+  each written tab, writer job id. Anyone can recompute the hash from the copy with `scripts/reconcile.js`.
+- **Recovery / rebuild:** deleting the Dashboard Data file or any tab → the next job rebuilds everything from the copy (rows from
+  2026-09-01). Restarting the dashboard server empties the cache → rebuilt from Dashboard Data (TV7). No PIATEC-only data exists.
+- **Timing budget (≤ 10 min):** copy wait ≤ 5 + job ≤ 2 (triggered when `updated_at` changes, polled every minute) + server read
+  ≤ 1 + page refresh ≤ 1. To be measured with the probe after the job exists.
+- **Minimum permissions:** the client creates the spreadsheet in the client's Drive and shares it — no link sharing, no domain-wide
+  delegation, no Drive scope:
+
+  | Identity | Copy | Heartbeat Sheet | Dashboard Data | OAuth scope |
+  |---|---|---|---|---|
+  | reader (exists; `spreadsheets.readonly`) | Viewer | Viewer | Viewer | `spreadsheets.readonly` |
+  | writer (new, separate service account in the client environment) | — | — | **Editor** | `spreadsheets` (needed to write values; effective reach = files shared with it = this one file) |
+  | client tester | as the client decides | — | Viewer | — |
+  | dashboard viewers | — | — | — (they see the screen only) | — |
+
+  A separate writer keeps the reader unable to write anything, and a leaked writer key can change only the Dashboard Data file.
+
+**Options not recommended.** B: keep in-memory only — does not meet REQ §5-3 / §7-3 (acceptable only as the current interim).
+C: a database — out of scope (REQ §9).
+
+**Decisions needed before anything is built (no file is created, no sharing changed, no write implemented until then):**
+target location (client Google account / Drive folder) and file name; who creates the file (recommended: the client); approval of a
+writer identity with `spreadsheets` scope and Editor on that file only; where the Transform job runs (Q-01); whether the dashboard
+reads Dashboard Data or keeps the copy as its input until the job is accepted. Tracked as **Q-54** (connection-spec §12.2).
+
 ---
 
 ## 8. Idempotency, deduplication, checkpoint / resume
@@ -191,8 +269,8 @@ PIATEC recovers without Maru acting. Before handover PIATEC installs, verifies t
 | Dedup keys | copy: `元の行番号`; Dashboard: `messageId` (+ `再送`, Q-17), `question_id`, `send_id` (proposed from `元の行番号`), `run_id` | REQ §5-1, §5-3; client 10/7; Q-11 PARTIAL |
 | Resume | after a mid-way failure the next run continues from the same point with no loss and no duplicate (copy: client; Transform: PIATEC) | REQ §3 #1b, TV19 |
 | State persistence | rebuilding the registry must not reset question state or answers | REQ §5-3, TV12; mechanism **Q-23** |
-| Where state lives | client-named storage only | REQ §7-3 |
-| Rebuild | deleting all screen cache must rebuild identically from the registry | TV7 |
+| Where state lives | client-named storage only | REQ §7-3 — **gap today: Screen Data is in memory only; proposal §8a (Q-54)** |
+| Rebuild | deleting all screen cache must rebuild identically from the registry | TV7 — no registry store yet (§8a) |
 
 ---
 
@@ -293,7 +371,7 @@ The client decides pass/fail on real items; TV2 and TV13 and any test that chang
 | TV24 | Inspect the whole Read Copy | no unauthorized group (LINK, out-of-table), recipient, `userId`, `宛先ID`, `画像URL` or reservation tab | A |
 | TV25 | Success rate before/after schedule-change day; run stuck `running` past deadline; **stop the monitoring process itself** | before-change days use the old schedule; past-deadline run = "ยืนยันผลไม่ได้"; the stop of the watcher is detected | B |
 
-After 10/7: **TV24** inspects the client's View-only Copy (PIATEC's verifier gives evidence; the client judges); **TV9** runs through the client's Copy Script and PIATEC's Transform; **TV19/TV21** detect a stopped copy through copy `meta` (`last_read_at`, `updated_at`, `status`, Q-50); **TV18** duties split between client (copy, access) and PIATEC (dashboard) — Q-53; **TV10/TV25** depend on the run-status reading the client has not yet decided (Q-49).
+After 10/7: **TV24** inspects the client's View-only Copy (PIATEC's verifier gives evidence; the client judges); **TV9** runs through the client's Copy Script and PIATEC's Transform; **TV19/TV21** detect a stopped copy through copy `meta` (`last_read_at`, `updated_at`, `status`, Q-50); **TV18** duties split between client (copy, access) and PIATEC (dashboard) — Q-53; **TV10/TV25** depend on the run-status reading (Q-49; PIATEC's proposal: `docs/run-status-proposal.md`, not approved); **TV1/TV7** need the Dashboard Data store (§8a, Q-54). Current status per TV: `TEST_REPORT.md` (root).
 
 Tests are executed per phase: Phase 1 (10/15) covers pages ②–⑦ for Bangkok; the final acceptance (10/25) runs TV1–TV25 (REQ §4). Items needing Nagoya data are type C.
 Evidence: `TEST_REPORT.md` with screenshots; `CHANGES.md` for history.
@@ -342,4 +420,4 @@ Items **not adopted** because REQ does not support them (do not implement unless
 
 ## 17. Open items
 
-All UNCONFIRMED items are in `docs/connection-spec.md` §12 (Q-01 … Q-30; status update and Q-47 … Q-53 in §12.1). Architecture-relevant: Q-01 (hosting; production in the client's environment), Q-02 (notification channel), Q-03 (monitoring terms), Q-04 (allowlist), Q-05 (cache), Q-06 (acceptance tester), Q-07 (Phase 2), Q-08 (Transform cadence; copy every 5 min is CONFIRMED), Q-47 (contact route), Q-48 (reader account), Q-49 (run-status reading), Q-53 (TV18 split).
+All UNCONFIRMED items are in `docs/connection-spec.md` §12 (Q-01 … Q-30; status update and Q-47 … Q-53 in §12.1). Architecture-relevant: Q-01 (hosting; production in the client's environment), Q-02 (notification channel), Q-03 (monitoring terms), Q-04 (allowlist), Q-05 (cache), Q-06 (acceptance tester), Q-07 (Phase 2), Q-08 (Transform cadence; copy every 5 min is CONFIRMED), Q-47 (contact route), Q-48 (reader account), Q-49 (run-status reading; proposal `docs/run-status-proposal.md`), Q-53 (TV18 split), Q-54 (Dashboard Data storage location and writer permission, §8a).

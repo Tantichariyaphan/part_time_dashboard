@@ -237,7 +237,7 @@ Every copy tab also has `元の行番号` (row identity, §4.3); PIATEC keeps it
 | `心拍.時刻` | probably `read_at` | **Q-15** |
 | `心拍.読んだ行数` | probably `input_lines` (blank = not pulled; 0 = zero) | **Q-15** |
 | `心拍.候補数`, `送信MEAT`, `送信IN`, `実行ms`, `gap分` | no stated screen field | **Q-15** |
-| `心拍.結果` (free text; now also `AI=scheduled-off`, §0-16) | `status`, `reason` | **the client will decide and announce how run status is read (§0-17)**; until then no interpretation is implemented | **Q-15, Q-49** |
+| `心拍.結果` (free text; now also `AI=scheduled-off`, §0-16) | `status`, `reason` | **the client will decide and announce how run status is read (§0-17)**; until then no interpretation is implemented. PIATEC's proposal from the client's 10/5 sample (REQ §5-1, §5-4 #2): `docs/run-status-proposal.md` — **not approved, not implemented** | **Q-15, Q-49 (a–h)** |
 | `送信ログ` OK rows | `sent_at`, `questions_sent`, `messages_sent` | counts D; run linking **Q-21** |
 | schedule (`schedules`) | `scheduled_at`; one row per scheduled run even if it did not run | C |
 | — | `ai_done_at`, `posted_at`, `received_at`, `owner_items`, `photos_total`, `photos_reviewed`, `owner_notified`, `evidence` | no Source column identified | **Q-15** |
@@ -278,7 +278,8 @@ Every copy tab also has `元の行番号` (row identity, §4.3); PIATEC keeps it
 | Test-sheet change → screen | ≤ 5 minutes | TV2 (type B) |
 | Page display | ≤ 3 seconds | TV4, TV17 |
 
-The 10-minute budget per hop and the polling/trigger cadence are **UNCONFIRMED (Q-08)**. The 20-minute figure is for *data update* freshness; the 15-minute figures for machine heartbeat and light check (data-mapping §9.2) are different thresholds and must not be merged.
+The 10-minute budget per hop and the polling/trigger cadence are **UNCONFIRMED (Q-08)**. What the build does for each time requirement
+and which evidence exists (none on real data yet for timing): `docs/architecture.md` §7.4; measurement tool `npm run diag:timing`. The 20-minute figure is for *data update* freshness; the 15-minute figures for machine heartbeat and light check (data-mapping §9.2) are different thresholds and must not be merged.
 
 ### 8.2 Two separate timestamps
 
@@ -294,7 +295,8 @@ Transform side (PIATEC):
 2. Because the copy is complete from 2026-09-01 and keyed by `元の行番号`, Dashboard Data is **rebuilt from the copy on each read**
    (idempotent by construction; no PIATEC-side checkpoint over the Original Records) — **IMPLEMENTED** in memory (`src/adapters/copy/`;
    reads at most once a minute; ≈0.7 s per read for 20,000 synthetic messages). Where the Dashboard Data / Ledger is stored in the
-   client's account, and how question state survives a rebuild without PIATEC-only data, are **UNCONFIRMED (Q-01, Q-23)**.
+   client's account, and how question state survives a rebuild without PIATEC-only data, are **UNCONFIRMED (Q-01, Q-23, Q-54)** —
+   gap and proposed client-owned store with minimum permissions: `docs/architecture.md` §8a (nothing created or written yet).
 3. Checkpoints / resume points, if any, live only in **client-named storage** (REQ §7-3).
 
 ### 8.4 Stop detection and recovery behaviour
@@ -327,7 +329,7 @@ PIATEC must not interrupt the existing monitoring: the monitoring system keeps r
 | Bot reply linked to message | only when `送信ログ` column 6 exists (from 2026-10-02) and exactly one message matches | CONFIRMED for unique matches only; otherwise UNKNOWN ("ไม่ทราบว่าตอบข้อความใด") |
 | Bot reply linked by message ID | **no record** | cannot be confirmed |
 | Light-check operating time | **not in any sheet yet** | cannot be confirmed (UNKNOWN) |
-| Machine health | Machine Heartbeat Spreadsheet (ready; view access after the reader account is known) | NOT CONNECTED until PIATEC can read it (Q-48) |
+| Machine health | Machine Heartbeat Spreadsheet (`beats`, `alerts`), read with the reader account — CONNECTED 2026-10-13. Kept separate from run status: `beats` never decides a patrol/daily status; standby rows are never used (`docs/run-status-proposal.md` §3) | CONFIRMED source; display per REQ §6-①/⑥ |
 | Nagoya 2 stores | samples on 10/8; the current records have no field that tells the two stores apart | NOT CONNECTED (Phase 2) |
 | `handling` = `not_needed` / `pending` / `carried` | needs AI judgement; PIATEC must not guess | UNCONFIRMED (Q-18) |
 | `owner_items`, `photos_*`, `owner_notified`, `ai_done_at`, `posted_at`, `received_at` | no Source column identified | UNCONFIRMED (Q-15) |
@@ -473,6 +475,20 @@ New questions (2026-10-07):
 | **Q-52** | `AI質問追跡` gap: date of the fix; whether questions sent 10/6 – fix are backfilled; how to mark days with incomplete question records | ④, ①, ⑦ | client | days after 10/5 count questions as "not pulled / incomplete", never 0 | UNCONFIRMED |
 | **Q-53** | TV18 recovery drill after 10/7: which parts PIATEC demonstrates (copy recovery is the client's) | acceptance | client | PIATEC demonstrates dashboard-side detection and recovery only | UNCONFIRMED |
 
+### 12.2 Status update — 2026-10-13
+
+| ID | Status | Update |
+|---|---|---|
+| Q-48 | CONFIRMED | Reader account created (service account, `spreadsheets.readonly`); the client shared both files; `check:sources` CONNECTED for both on 2026-10-13 |
+| Q-49 | UNCONFIRMED — **PIATEC draft proposal, not yet sent** | `docs/run-status-proposal.md`: interpretation table from the client's 10/5 sample, sub-questions **Q-49a … Q-49h** (two options + recommendation each). Live `心拍` 10/13: 722 rows, 24 STOP-class, 239 not recognised by the draft, 130 unparsed segments — the draft is revised with the live shapes before it is sent |
+| Q-52 | UNCONFIRMED | Live copy has question rows after 10/5 again; completeness unconfirmed (live reconcile 10/7–10/13: 1 question in 7 business days); screen text "may be incomplete" |
+
+New question (2026-10-13):
+
+| ID | Question | Blocks | Who answers | Safe default until answered | Status |
+|---|---|---|---|---|---|
+| **Q-54** | Dashboard Data / Ledger storage (REQ §5-3, §7-3): location (client Google account / Drive folder) and file name; who creates the file (proposed: the client); approval of a separate **writer** identity with `spreadsheets` scope and Editor on that one file only; where the Transform job runs (Q-01). Proposal: `docs/architecture.md` §8a | TV1, TV7, REQ §5-3 storage, Phase 2 state persistence | client (Maru approves sharing; via the contact route Q-47) | Screen Data stays in memory, rebuilt from the copy each read; **no file created, no sharing changed, no writes** | UNCONFIRMED |
+
 ---
 
 ## 13. Acceptance linkage
@@ -482,7 +498,7 @@ New questions (2026-10-07):
 | Source→screen ≤10 min, no client work, 0 Source writes | TV9 |
 | Stop detection ≤20 min, notify once, resume, no duplicates | TV19, TV21 |
 | Forbidden data absent from the View-only Copy (client's copy; checked by PIATEC's verifier and judged by the client) | TV24 |
-| Numbers equal Source | TV1, TV20 |
+| Numbers equal Source | TV1, TV20 (read-only comparison tool: `npm run diag:reconcile`, implementation-notes §9) |
 | Recovery by PIATEC | TV18 |
 | Stale/missing handled | TV13, TV25 |
 
@@ -496,5 +512,7 @@ Test types: A = real data, B = test data (display only), C = Phase 2 real data. 
 2. Do not open, read or write the Original Records; do not access GAS or real folders; read only the View-only Copy and the Heartbeat Spreadsheet, only with the reader account (never Maru's account); do not send LINE/e-mail to groups, staff or owner (single exception: connection/recovery notices via the agreed channel, Q-02/Q-47).
 3. Do not carry `userId`, `宛先ID`, `画像URL`, LINK, out-of-table groups, other tabs, `グループID` or substitute keys into Dashboard Data or the screen; a copy that contains a forbidden field stops that tab.
 4. Do not infer links from text similarity; do not count `candidate` in rates; do not show 0% without confirmation records.
-5. Do not assign work to Maru; do not ask for his password; do not invent rules for `AI=scheduled-off` or run status (Q-49).
+5. Do not assign work to Maru; do not ask for his password; do not invent rules for `AI=scheduled-off` or run status (Q-49). PIATEC's
+   proposal (`docs/run-status-proposal.md`) is a question to the client, not a rule: nothing in it is shown on the screen before approval,
+   and it derives no status from `AI=scheduled-off`, from a machine heartbeat alone, or from standby-machine data.
 6. Do not alter real Source, real copy or real screen data for testing.
