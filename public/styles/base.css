@@ -55,6 +55,7 @@ button { font: inherit; color: inherit; }
 .strip { margin: 0; padding: 6px var(--gutter); font-size: 12.5px; font-weight: 700; text-align: center; letter-spacing: 0.02em; }
 .strip--demo { background: var(--ink); color: #fff; }
 .strip--devmock { background: repeating-linear-gradient(135deg, #ecebe6, #ecebe6 10px, #e3e1da 10px, #e3e1da 20px); color: var(--ink); border-bottom: 1px dashed var(--line-strong); }
+.strip--live-down { background: var(--st-blocked); color: #fff; }
 
 .content { padding: 12px var(--gutter) 64px; display: grid; gap: var(--gap); }
 .content.is-stale .card:not(.keep-color), .content.is-stale .metric { filter: grayscale(1); opacity: 0.62; }

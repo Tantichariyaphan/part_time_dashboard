@@ -1,7 +1,7 @@
 # NIKUSHO AI Monitoring System — Dashboard skeleton
 
 **Not production.** This milestone is the Dashboard skeleton, the Screen Data contract, a mock/demo adapter and a read-only API boundary.
-No real data is connected. Since **2026-10-07 the client builds and runs the Copy Script**; PIATEC reads only the client's View-only Copy and the Machine Heartbeat Spreadsheet with a dedicated reader account and never the Original Records. The connector for those two files is built (`NIKUSHO_LIVE_ADAPTER=copy`, tested on synthetic data) but stays **NOT_CONNECTED** until the reader account exists (Q-48). The project contract is in `Claude.md` and `docs/` (`docs/connection-spec.md` §0 for the 10/7 update); deviations and open questions are in `docs/implementation-notes.md`. `parttimedashboard.vercel.app` is prototype hosting only.
+Since **2026-10-07 the client builds and runs the Copy Script**; PIATEC reads only the client's View-only Copy and the Machine Heartbeat Spreadsheet with a dedicated reader account (read-only) and never the Original Records. The connector reads both files (CONNECTED on PIATEC's laptop since 2026-10-13, `npm run start:live`). **Any deployed dashboard is live-only** (`server/liveSource.js`): the live entry is the client copy; without a working source it shows 未接続 / 更新停止, never mock data. Mock data is for local development (`npm start`) and tests; the anonymized demo is the separate `/demo/` entry. The project contract is in `Claude.md` and `docs/` (`docs/connection-spec.md` §0 for the 10/7 update); deviations and open questions are in `docs/implementation-notes.md`. `parttimedashboard.vercel.app` is prototype hosting only.
 
 ## Run (Node.js >= 22; no dependencies)
 
@@ -28,7 +28,7 @@ npm start          # node server/index.js
 * `NIKUSHO_AUTH=google`: the **Auth Prototype** — "Sign in with Google" → server-verified identity → server session (HttpOnly cookie) →
   server-side allowlist on every API request → read-only API. Needs `NIKUSHO_PUBLIC_ORIGIN`, `GOOGLE_OAUTH_CLIENT_ID`,
   `GOOGLE_OAUTH_CLIENT_SECRET`, and `NIKUSHO_ALLOWLIST_JSON` or `NIKUSHO_ALLOWLIST_FILE` (format: `config/allowlist.example.json`).
-  Vercel demo (mock data only): `api/server.js` + `vercel.json`, see `docs/auth-prototype.md` §10a.
+  Vercel entry: `api/server.js` + `vercel.json` — live entry = client copy only (未接続 until the source variables are set), `/demo/` = anonymized snapshot; see `docs/auth-prototype.md` §10a.
   Setup, allowlist add/remove/revoke procedure, tests and open items: `docs/auth-prototype.md`.
   Not verified with real accounts (TV3/TV15 not passed); production hosting/OAuth client belong to the client (Q-01).
 

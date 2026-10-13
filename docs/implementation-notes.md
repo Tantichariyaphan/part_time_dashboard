@@ -84,7 +84,7 @@ REQ §7-6 as written; Q-01, Q-04 and Q-05 stay **open** (no production decision 
 | N-24 | Outbound traffic | `server/auth/google.js` is the single module allowed to call out, only to Google's fixed OAuth endpoints; it imports no data code (static tests). | REQ §7-8 |
 | N-25 | Logout over GET | The service stays GET/HEAD-only, so logout is `GET /auth/logout`; the Strict session cookie keeps other sites from triggering it with the viewer's session. | — |
 | N-26 | Host check | In google mode `/api` and `/auth` refuse any `Host` other than `NIKUSHO_PUBLIC_ORIGIN`'s. | — |
-| N-27 | Vercel demo | `api/server.js` + `vercel.json` (2026-10-06). Allowlist may come from `NIKUSHO_ALLOWLIST_JSON` (wins over the file; read once per deployment; invalid → deny all) so real e-mails stay out of Git. Misconfiguration → 503 with no data, reason in the log. Values trimmed. Mock/demo data only; not the client environment. | Q-01, Q-04, Q-44 |
+| N-27 | Vercel prototype | `api/server.js` + `vercel.json`. Allowlist may come from `NIKUSHO_ALLOWLIST_JSON` (wins over the file; read once per deployment; invalid → deny all) so real e-mails stay out of Git. Misconfiguration → 503 with no data, reason in the log. Values trimmed. The live entry is copy-only or 未接続; `/demo/` is the separate anonymized snapshot. PIATEC's Vercel must not receive source variables without the client's written agreement. | Q-01, Q-04, Q-44 |
 
 Proposed questions (not yet in the Q register):
 
@@ -171,7 +171,7 @@ been run against the client's real files: every connector item is tested on synt
 | Heartbeat reader (`beats`, `alerts`) | IMPLEMENTED as a separate source; live state NOT_CONNECTED (Q-48) |
 | Connection spec v1 + missing-record list v1 to the client | MISSING (this repo's draft; planned 10/6) |
 | Written confirmation that vercel.app is prototype only | MISSING (PIATEC action) |
-| Production install in the client's environment | not started (Q-01); vercel.app keeps the mock/demo entries |
+| Production install in the client's environment | not started (Q-01); vercel.app: live entry is copy-only since 2026-10-13 (未接続 without source variables), demo entry kept |
 
 ### 7.3 Prototype code impact
 
@@ -183,7 +183,7 @@ None functionally. Comments that said PIATEC builds the copy were corrected (`sr
 
 1. ~~Create the reader account~~ — done; both files CONNECTED 2026-10-13 (Q-48). Still owed: written confirmation that vercel.app is prototype hosting only.
 2. Send connection spec v1 (this file set) and the missing-record list v1; ask Q-47, Q-49 … Q-53 and Q-12 (timestamp zone, incl. the zone of the column-6 `HH:MM`) with two options + recommendation each.
-3. Once the reader account and its environment are decided (Q-48, Q-01): add its token source and pass it to `chooseLiveAdapter(env, { getAccessToken })` — the only missing piece in code. Then run TV9 / TV24 against the real copy (type A, judged by the client).
+3. The service-account token source and reader wiring are implemented. Put the credential only in the approved hosting environment, then run TV9 / TV24 against the real copy (type A, judged by the client).
 4. After Q-49: run status from the copy (no rule before the client's announcement). PIATEC's proposal for the client to approve: `docs/run-status-proposal.md` (§9 below).
 5. After Q-52: lift or re-date `COPY_SOURCE_LIMITS.questionsIncompleteFrom` according to the client's fix/backfill answer.
 6. After Q-17: resend tie-up. (Candidate answers: done 10/13 by the REQ §5-1 rule, see §8.4; confirmed answers need evidence records, M-2.)
@@ -252,7 +252,7 @@ Commands (read `.env`):
   state/reason and the contract findings (codes, row numbers, column names; never cell values or ids). `reader_account_pending`
   = no key yet; `http_403` = key works but the client has not shared the file yet; `CONNECTED` = ready.
 - `npm run start:live` — the dashboard with live data on http://localhost:3000 (Google sign-in + allowlist required).
-The Vercel entry (`api/server.js`) still serves mock data only; live data there needs the client's written agreement (Q-01).
+The Vercel entry (`api/server.js`) is live-only since 2026-10-13 (§11): without source variables it shows 未接続, never mock data. Giving it the source variables (= real data on PIATEC's vercel.app) needs the client's written agreement (Q-01).
 
 ### 8.4 Transform rules actually implemented
 
@@ -321,3 +321,26 @@ evidence that closes each item) are kept in **one place only**: `TEST_REPORT.md`
 Not built and not to be built before the client's answer: alert delivery (Q-02, Q-47), the Dashboard Data store and its writer
 identity (Q-54), run-status reading (Q-49), installation in the client's environment (Q-01).
 
+## 11. Production = live data only (2026-10-13)
+
+Root cause of "the Vercel site shows mock data": `api/server.js` wired `live: createDevMockAdapter()` (written on 2026-10-05 for the
+Auth Prototype demo), so the live entry on Vercel was the dev mock (shown with the 「開発用モック表示 (DEV MOCK)」 strip). The local
+server also defaulted to the dev mock (`NIKUSHO_LIVE_ADAPTER` unset).
+
+Change:
+- `server/liveSource.js` (new): `isProduction(env)` (Vercel or `NIKUSHO_DEPLOYMENT=production`), `createLiveReaders()` (moved from
+  `server/index.js`, re-exported there), `createProductionLiveAdapter()` (copy adapter; config errors, a refused `NIKUSHO_LIVE_ADAPTER`
+  or an unreadable key become a NOT CONNECTED state with a code; the shipped `config/stores.json` is used when no stores variable is
+  set), `createSourceUnavailableAdapter()`.
+- `server/index.js` `chooseLiveAdapter()`: production → `createProductionLiveAdapter()` whatever `NIKUSHO_LIVE_ADAPTER` says;
+  development unchanged (dev mock default).
+- `api/server.js`: forces production policy; no import of the dev mock; start-up log names the live state (codes only).
+- UI: strip 「実データに接続できていません：<state>（<reason>） ｜ 表示できるデータはありません（モック・デモは表示しません）」 on the live entry
+  when the copy is not CONNECTED/PARTIAL (`public/app/components/shell.js`); the 未接続 card text no longer says "Phase 2" (it is also
+  shown for Bangkok when the source is down).
+- `vercel.json`: `maxDuration: 60` for the entry. The production reader bounds the token request and each of the three sequential Sheets requests to 10 seconds, so a cold-read failure returns its safe state within that cap.
+- Unchanged: mock fixtures, the demo snapshot and `/demo/`, the read-only API, sign-in and allowlist, the copy contract check.
+- Tests: `tests/live-only.test.js` LIVE-1 … LIVE-8; `tests/vercel.test.js` now composes the server like the Vercel entry. 210 tests.
+
+Not verified: the deployed site has not been redeployed with this change and has no source variables; nothing here proves live data on
+the deployed API or UI. See `TEST_REPORT.md` §3 (L9).

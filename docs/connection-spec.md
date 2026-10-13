@@ -444,7 +444,7 @@ Questions not listed are unchanged (UNCONFIRMED).
 
 | ID | Status | What the client update settles / what stays open |
 |---|---|---|
-| Q-01 | PARTIAL | Production in the client's environment (account, billing, domain) re-stated; vercel.app = prototype (PIATEC to confirm, §11.1 #11). Hosting technology and where the Transform runs: open |
+| Q-01 | PARTIAL | Production in the client's environment (account, billing, domain) re-stated; vercel.app = prototype (PIATEC to confirm, §11.1 #11). Every deployment now serves the client copy or 未接続, never mock; hosting technology and where the Transform runs remain open. |
 | Q-02 | UNCONFIRMED | Notice channel for stop/recovery not named |
 | Q-04 | UNCONFIRMED | Allowlist storage in production unchanged. Dashboard login accounts are separate from the reader account (§0-4) |
 | Q-05 | UNCONFIRMED | unchanged |

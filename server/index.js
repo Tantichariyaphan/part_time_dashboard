@@ -1,10 +1,12 @@
 // HTTP server for the skeleton: static UI + read-only JSON API.
 // Technology/hosting is UNCONFIRMED (Q-01); this plain Node server is a development harness with zero dependencies.
 //
-//   NIKUSHO_LIVE_ADAPTER   devmock (default for this milestone) | none | copy
+//   NIKUSHO_DEPLOYMENT     production -> the live entry is ALWAYS the client copy (server/liveSource.js): devmock/none are
+//                          refused and a missing source shows a connection/error state, never mock data. Vercel (VERCEL=1)
+//                          is always production. Unset = local development.
+//   NIKUSHO_LIVE_ADAPTER   development: devmock (default) | none | copy.   production: copy (default; anything else is refused)
 //                          copy = reader of the client's View-only Copy + Machine Heartbeat Sheet (real data; needs
-//                          NIKUSHO_AUTH=google; configuration in server/source/config.js). NOT_CONNECTED until the reader
-//                          account exists (Q-48): nothing is read and nothing is fabricated.
+//                          NIKUSHO_AUTH=google; configuration in server/source/config.js).
 //   NIKUSHO_DEV_SCENARIO   full (default) | phase1 | stale-messages | stopped | error | machine-down   (devmock only)
 //   PORT                   default 3000
 //   HOST                   default 127.0.0.1 (dev gate accepts loopback only)
@@ -21,10 +23,10 @@ import { createDevMockAdapter } from '../src/adapters/mock/devMockAdapter.js';
 import { createDemoAdapter } from '../src/adapters/demo/demoAdapter.js';
 import { createNoneAdapter } from '../src/adapters/none/noneAdapter.js';
 import { createCopyAdapter } from '../src/adapters/copy/copyAdapter.js';
-import { COPY_TAB, FORBIDDEN_FIELDS, HEARTBEAT_TAB } from '../src/contract/copyContract.js';
-import { loadSourceConfig, SourceConfigError } from './source/config.js';
-import { createSheetsReader } from './source/sheetsReader.js';
-import { createServiceAccountTokenSource } from './source/serviceAccountToken.js';
+import { SourceConfigError } from './source/config.js';
+import { createLiveReaders, createProductionLiveAdapter, isProduction } from './liveSource.js';
+
+export { createLiveReaders, isProduction };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
@@ -38,10 +40,12 @@ const SECURITY_HEADERS = {
 
 /**
  * @param {object} env
- * @param {{getAccessToken?: () => Promise<string>}} reader  token source of the dedicated READER account. Normally built from
+ * @param {{getAccessToken?: () => Promise<string>, log?: Function}} reader  token source of the dedicated READER account. Normally built from
  *   the service-account key in NIKUSHO_READER_KEY_FILE / _JSON; without a key both readers are NOT_CONNECTED (Q-48).
  */
-export function chooseLiveAdapter(env = process.env, { getAccessToken: injected } = {}) {
+export function chooseLiveAdapter(env = process.env, { getAccessToken: injected, log } = {}) {
+  // Production: the client copy only. No mock/demo fallback, whatever NIKUSHO_LIVE_ADAPTER says (server/liveSource.js).
+  if (isProduction(env)) return createProductionLiveAdapter(env, { getAccessToken: injected, ...(log ? { log } : {}) });
   const which = env.NIKUSHO_LIVE_ADAPTER ?? 'devmock';
   if (which === 'none') return createNoneAdapter();
   if (which === 'devmock') return createDevMockAdapter({ scenario: env.NIKUSHO_DEV_SCENARIO ?? 'full' });
@@ -50,26 +54,6 @@ export function chooseLiveAdapter(env = process.env, { getAccessToken: injected 
     return createCopyAdapter({ config: cfg.adapter, copyReader, heartbeatReader });
   }
   throw new Error(`NIKUSHO_LIVE_ADAPTER must be one of: devmock, none, copy`);
-}
-
-/**
- * The two read-only readers of the client's files, built from server configuration only. Shared by the live adapter and the
- * read-only diagnostics in scripts/ (so a diagnostic reads exactly what the dashboard reads, with the same checks).
- */
-export function createLiveReaders(env = process.env, { getAccessToken: injected } = {}) {
-  const cfg = loadSourceConfig(env);
-  const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey) : undefined);
-  return {
-    cfg,
-    // Two separate readers, one per client file; the same reader account; ids only from server configuration.
-    copyReader: createSheetsReader({
-      spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
-      refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
-    }),
-    heartbeatReader: createSheetsReader({
-      spreadsheetId: cfg.heartbeatSpreadsheetId, tabs: Object.values(HEARTBEAT_TAB), refuseHeaders: FORBIDDEN_FIELDS, getAccessToken,
-    }),
-  };
 }
 
 function send(res, status, body, headers = {}) {
@@ -160,7 +144,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1);
   });
   server.listen(port, host, () => {
-    console.log(`NIKUSHO monitor skeleton (NOT production)  http://${host}:${port}/        live entry -> ${live.kind}${live.scenario ? ` (${live.scenario})` : ''}`);
+    console.log(`NIKUSHO monitor (${isProduction() ? 'production mode' : 'development'})  http://${host}:${port}/        live entry -> ${live.kind}${live.scenario ? ` (${live.scenario})` : ''}${live.unavailable ? ` NOT CONNECTED (${live.unavailable})` : ''}`);
     console.log(`                                            http://${host}:${port}/demo/   demo entry -> fixed anonymized snapshot`);
     console.log(auth
       ? `viewer check: Google sign-in + server-side allowlist (Auth Prototype). Open ${authConfig.publicOrigin}/ (or /demo/) - other host names are refused.`

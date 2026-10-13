@@ -44,7 +44,7 @@ function frame(pageId, storeParam, info) {
   const main = h('main', { class: 'content', id: 'main' }, LoadingState());
   const header = PageHeader(pageId, storeParam);
   if (auth?.mode === 'google' && auth.allowed) header.append(AuthBar(auth.email));
-  root.append(...[header, EntryStrip(entry, info?.adapterKind ?? null), main].filter(Boolean));
+  root.append(...[header, EntryStrip(entry, info?.adapterKind ?? null, info?.sources ?? null), main].filter(Boolean));
   return main;
 }
 

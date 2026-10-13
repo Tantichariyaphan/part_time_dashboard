@@ -3,10 +3,16 @@ import { S } from '../strings.ja.js';
 
 export const PAGE_IDS = ['all', 'today', 'messages', 'questions', 'failures', 'machines', 'periods'];
 
-/** Entry strip: makes demo / dev-mock impossible to mistake for production data. No switch between entries exists. */
-export function EntryStrip(entry, adapterKind) {
+/** Entry strip: makes demo / dev-mock impossible to mistake for production data. No switch between entries exists.
+ *  On the live entry over the client copy it also says plainly when the copy is not connected / not readable: then the
+ *  pages hold no data (never mock records) and the strip names the state and its reason code. */
+export function EntryStrip(entry, adapterKind, sources = null) {
   if (entry === 'demo') return h('p', { class: 'strip strip--demo', role: 'note' }, S.demoStrip);
   if (adapterKind === 'devmock') return h('p', { class: 'strip strip--devmock', role: 'note' }, S.devStrip);
+  const copy = adapterKind === 'copy' ? sources?.copy : null;
+  if (copy && copy.state !== 'CONNECTED' && copy.state !== 'PARTIAL') {
+    return h('p', { class: 'strip strip--live-down', role: 'alert' }, S.liveDownStrip(S.sources.state[copy.state] ?? copy.state, copy.reason));
+  }
   return null;
 }
 

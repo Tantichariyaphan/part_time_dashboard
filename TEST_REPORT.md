@@ -4,10 +4,11 @@ Deliverable REQ §3 #7 (`TEST_REPORT.md`: results of TV1–TV25 in REQ §8, with
 Report date: **2026-10-13**. Prepared by PIATEC (the builder). **This is not acceptance:** REQ §2 / §8 — the client's tester judges
 pass/fail, and the person who judges must not be the builder. Every status below is PIATEC's evidence-based self-assessment.
 
-Code under test: commit `b64bed8` (`main` = `origin/main`) plus uncommitted read-only diagnostics of 2026-10-13
-(`scripts/analyze-heartbeat.js`, `scripts/reconcile.js`, `scripts/timing-probe.js`, `tests/diagnostics.test.js`; see `CHANGES.md`).
+Code under test: commit `ad78238` (`main` = `origin/main`; read-only diagnostics committed as `59f00de`/`ad78238`) plus the
+uncommitted "production = live data only" change of 2026-10-13 (`server/liveSource.js`, see `CHANGES.md`).
 Where it ran: PIATEC's laptop (`npm run start:live`, Google sign-in + allowlist, reader account). **Nothing is installed in the
-client's environment; vercel.app holds mock/demo data only.**
+client's environment. The deployed vercel.app still runs the earlier code (live entry = dev mock) until it is redeployed; after a
+redeploy without source variables its live entry shows 未接続, never mock data.**
 
 Related documents (no duplicated verdicts): detailed synthetic/pre-source evidence per TV — `docs/acceptance-report.md` §1;
 real-data evidence status — `docs/acceptance-report.md` §1a; how the diagnostics work — `docs/implementation-notes.md` §9;
@@ -28,7 +29,7 @@ open questions — `docs/connection-spec.md` §12. **If a verdict in another doc
 | Evidence | Meaning |
 |---|---|
 | **LIVE** | the client's real View-only Copy / Heartbeat Sheet, read with the reader account (GET only) on 2026-10-13; outputs were pasted into the working session; raw output files are **not** in the repository |
-| **SYN** | automated tests on synthetic data (`npm test`, 202 tests) or the headless UI review (`scripts/ui-review.mjs`) |
+| **SYN** | automated tests on synthetic data (`npm test`, 210 tests since the live-only change; 202 before) or the headless UI review (`scripts/ui-review.mjs`) |
 | **MAN** | a manual check by a person |
 
 REQ §8 types: **A** = Phase 1 real data, **B** = Phase 1 test data (display only), **C** = Phase 2 real data.
@@ -57,6 +58,7 @@ REQ §8 types: **A** = Phase 1 real data, **B** = Phase 1 test data (display onl
 | L6 | `npm run diag:heartbeat` | **722** `心拍` rows; **24** `STOP`-class rows; **239** rows of class `other` (not recognised by the proposal's parser); **130** unparsed segments. The proposed run-status rules are **not approved and not used** by the dashboard |
 | L7 | `npm run diag:timing` | **one sample only.** No 3-day series, no observed stop |
 | L8 | Live pages | all 7 pages rendered live data with the last-updated time in a desktop browser on the laptop (MAN, no screenshot kept) |
+| L9 | Deployed vercel.app | `/auth/me` answers in Google mode (unauthenticated: no data). The deployment runs code **before** the live-only change: its live entry is the dev mock. **Live data on the deployed API/UI has not been verified** — it needs a redeploy, the source variables and the client's written agreement (Q-01) |
 
 Limits that apply to every LIVE row: L4 computes the view model **from the same source read** in-process; it does **not** inspect
 the running server's cache or the rendered DOM. All LIVE evidence comes from one laptop on one day.
@@ -112,7 +114,7 @@ None exist in the repository. Do not reuse synthetic screenshots as real-data ev
 | **Run Status approval** | proposal `docs/run-status-proposal.md` from the 10/5 sample; live: 239 of 722 rows are not recognised by it, 24 STOP rows | TV1 (status), TV10/TV25 real data, ②⑤⑦ | revise the proposal with the live shapes; client answers Q-49a–h |
 | **Timing verification** | one sample | TV9, TV19, TV21 | 3 days of `diag:timing`; a stop on a test copy |
 | **Alert delivery** | not built | TV19, TV21, TV25 | client names the channel and contact (Q-02, Q-47); then build |
-| **Client-owned hosting** | laptop only; vercel.app = mock/demo | TV2–TV4, TV6, TV9, TV15–TV19, TV21 | Q-01 decision and install in the client's account |
+| **Client-owned hosting** | laptop only; vercel.app = prototype (live-only code from the next redeploy, no source variables, so 未接続) | TV2–TV4, TV6, TV9, TV15–TV19, TV21 | Q-01 decision and install in the client's account; or the client's written agreement to give vercel.app the source variables |
 | **Nagoya configuration** | no Nagoya rows in `config/stores.json` (Phase 1 needs them shown as 未接続) | TV6 | client gives the two store ids / display names (Q-07); config change only (TV5 proves no code change) |
 | **Resend linkage** | rows sharing a `messageId` are merged; `再送` rows with their **own** `messageId` count as separate messages | TV20 accuracy, ③ | client answers Q-17 |
 

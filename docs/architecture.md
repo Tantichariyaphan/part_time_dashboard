@@ -36,7 +36,7 @@ MACHINE HEARTBEAT SPREADSHEET (beats, alerts; client account; reader account = v
 
 Cross-cutting: freshness monitoring · stop detection ≤20 min · alert (channel Q-02, contact Q-47) · recovery of PIATEC's parts
 Separate entry: DEMO page on fixed anonymized data
-Prototype hosting: parttimedashboard.vercel.app (mock/demo data only) — production goes to the client's environment (Q-01)
+Prototype hosting: parttimedashboard.vercel.app (live entry = client copy only, 未接続 without source variables; demo entry) — production goes to the client's environment (Q-01)
 ```
 
 **Completion condition (REQ §2, adjusted 10/7):** logs the monitoring system already writes must flow to the screen automatically — through the client's Copy Script and PIATEC's Transform — and the client can open one URL and view every day. A screen alone, dummy data alone, or anything that still needs manual work by the client = **not accepted**. Neither phase may require Maru to work daily (confirming answers, copying data).
@@ -306,6 +306,12 @@ Capability is a property of **(store, function)**, derived from configuration an
 
 Rules: the real screen holds real names/text → never projected at the presentation. Demo must not read production data. Production summaries exclude `DUMMY-` rows. Deliverable #3. How the demo entry is authorized: **Q-01/Q-04** (not defined by REQ).
 
+**Implemented (2026-10-13, `server/liveSource.js`):** a deployed dashboard (Vercel, or `NIKUSHO_DEPLOYMENT=production`) serves only the
+client copy on the live entry. There is no fallback: a missing configuration, key or file, or a failed read, gives a connection/error
+state (stores 未接続, red 更新停止 banner, strip 「実データに接続できていません（state / reason code）」, reason on ⑥) and no rows. The dev
+mock (`src/adapters/mock/`) is used only by local development (`npm start`, `NIKUSHO_DEPLOYMENT` unset) and tests; the demo snapshot only
+by the `/demo/` entry. Tests: `tests/live-only.test.js`, `tests/vercel.test.js`.
+
 ---
 
 ## 11. The 7 dashboard pages (REQ §6; details in data-mapping §11)
@@ -328,7 +334,7 @@ Page-level detail on 10/12: prototype with **real data flowing** (REQ §4).
 ## 12. Deployment in the client environment
 
 - Installed in the **client's Google** environment: client-owned account, domain and billing; one URL; portrait phone (REQ §3 #1, §7-5). The client re-stated this on 10/7.
-- `parttimedashboard.vercel.app` is **prototype hosting only** (mock/demo data; PIATEC-side account). It must never hold real data, and PIATEC owes the client a written confirmation of this (connection-spec §11.1 #11).
+- `parttimedashboard.vercel.app` is **prototype hosting only** (PIATEC-side account). Since 2026-10-13 every deployment is live-only (§10): its live entry is the client copy and shows 未接続 while no source variables are set; it must not be given the source variables (= real data) without the client's written agreement. PIATEC owes the client a written confirmation of this (connection-spec §11.1 #11).
 - The reader account's credentials must also live in the client's environment for production (Q-01, Q-48).
 - Storage for the View-only Copy (client-built), dashboard data, settings and resume points: client-named (REQ §7-3, §5-3).
 - Source code in a client-named repository; `README.md`, install steps and recovery steps so that **one client-side person** can reinstall and recover (REQ §3 #4–#5).

@@ -3,9 +3,27 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
-## Unreleased — not committed (2026-10-13)
+## Unreleased — not committed (2026-10-13) — production = live data only
+
+- **Fixed (root cause of mock data on vercel.app):** `api/server.js` wired the dev mock as the live entry. It now forces the production
+  policy: the live entry is the client's View-only Copy + Heartbeat Sheet only; without a working source it shows 未接続 / 更新停止 with a
+  reason code, never mock or demo data.
+- **Added** `server/liveSource.js` (`isProduction`, `createLiveReaders` (moved), `createProductionLiveAdapter`,
+  `createSourceUnavailableAdapter`); `chooseLiveAdapter()` uses it when `VERCEL=1` or `NIKUSHO_DEPLOYMENT=production`; a requested
+  `devmock` / `none` / `demo` is refused there. Local development is unchanged (dev mock default).
+- **UI:** strip 「実データに接続できていません …（モック・デモは表示しません）」 on the live entry when the copy is not connected; the 未接続 card
+  text no longer says "Phase 2".
+- `vercel.json`: `maxDuration: 60` for the entry. The production reader bounds the token request and each sequential Sheets request to 10 seconds, so a cold-read failure returns its safe state within that cap. `.env.example`: `NIKUSHO_DEPLOYMENT` and the local-file versus hosted-JSON reader-key distinction.
+- **Tests:** `tests/live-only.test.js` (LIVE-1 … LIVE-8); `tests/vercel.test.js` composes the server like the Vercel entry. 202 → 210.
+- **Docs:** `README.md`, `docs/auth-prototype.md` §10a, `docs/architecture.md` §10/§12, `docs/implementation-notes.md` §11,
+  `docs/connection-spec.md` §12.2 (Q-01), `docs/traceability-matrix.md`, `TEST_REPORT.md` (L9).
+- Kept: mock fixtures, demo snapshot and `/demo/`, read-only access, sign-in and allowlist.
+
+## 59f00de, ad78238 — 2026-10-13 — read-only diagnostics and delivery documents
 
 Read-only real-data diagnostics, run-status proposal, delivery documents. No change to what the dashboard shows.
+(`ad78238` also added a stray file whose name starts with `tics and reconciliation` — terminal output of a `git diff`, no
+credentials; to be removed in the next commit.)
 
 - **Added** `scripts/reconcile.js` (`npm run diag:reconcile`): copy → transformed Screen Data → view model for N business days;
   counts, text equality, replies, send results, questions, meta; prints counts and row numbers only (TV1, TV8, TV20 evidence).

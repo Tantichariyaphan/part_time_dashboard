@@ -5,6 +5,7 @@ export const S = {
   appSub: '管理画面',
   demoStrip: 'デモ表示 ｜ สาธิต ｜ 固定の匿名化データです（実データではありません）',
   devStrip: '開発用モック表示 ｜ 実データではありません (DEV MOCK)',
+  liveDownStrip: (state, reason) => `実データに接続できていません：${state}${reason ? `（${reason}）` : ''} ｜ 表示できるデータはありません（モック・デモは表示しません）`,
   pages: {
     all: { n: '①', label: '全店舗', title: '全店舗' },
     today: { n: '②', label: '本日', title: '本日' },
@@ -34,7 +35,7 @@ export const S = {
   noStores: '表示できる店舗がありません。',
   noStoresBody: '接続済みの店舗がありません。',
   notConnected: '未接続',
-  notConnectedBody: 'この店舗のデータはまだ接続されていません（フェーズ2）。',
+  notConnectedBody: 'この店舗のデータは接続されていません。',
   outOfScope: '対象外',
   offHours: '時間外',
   notPulled: '未取得',

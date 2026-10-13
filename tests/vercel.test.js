@@ -1,4 +1,5 @@
-// Vercel demo entry (api/server.js) + allowlist from NIKUSHO_ALLOWLIST_JSON. Synthetic data; local test IdP.
+// Vercel entry (api/server.js): live entry = client copy only (never mock), demo entry separate; allowlist from
+// NIKUSHO_ALLOWLIST_JSON. Synthetic data; local test IdP; no source configured, so the live entry is NOT CONNECTED.
 // Proves the wiring only. A real Google sign-in on the deployed URL is a manual check (TV15-style), not covered here.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,12 +8,11 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { createServer } from '../server/index.js';
+import { chooseLiveAdapter, createServer } from '../server/index.js';
 import { loadAuthConfig, AuthConfigError } from '../server/auth/config.js';
 import { createGoogleAuth } from '../server/auth/index.js';
 import { createGoogleProvider } from '../server/auth/google.js';
 import { createEnvAllowlist } from '../server/auth/allowlist.js';
-import { createDevMockAdapter } from '../src/adapters/mock/devMockAdapter.js';
 import { createDemoAdapter } from '../src/adapters/demo/demoAdapter.js';
 import { startFakeGoogle } from './fakeGoogle.js';
 
@@ -57,6 +57,8 @@ test('VERCEL-1 entry starts with NIKUSHO_ALLOWLIST_JSON: sign-in offered, Google
   assert.equal(`${u.origin}${u.pathname}`, 'https://accounts.google.com/o/oauth2/v2/auth');
   assert.equal(u.searchParams.get('redirect_uri'), `${ORIGIN}/auth/callback`);
   assert.match(log, /allowlist from NIKUSHO_ALLOWLIST_JSON/);
+  assert.match(log, /live entry -> client copy NOT CONNECTED \(source_config_invalid\)/, 'no source configured: live entry is the copy, not connected');
+  assert.equal(/devmock|DEV MOCK/i.test(log), false, 'the dev mock is never the live entry on Vercel');
   assert.equal(log.includes('allowed.viewer'), false, 'e-mails are not logged'); assert.equal(log.includes(SECRET), false);
 });
 
@@ -117,7 +119,7 @@ before(async () => {
   fake = await startFakeGoogle({ clientId: 'cid', clientSecret: SECRET, now: Date.now });
   const config = loadAuthConfig({ ...BASE_ENV, NIKUSHO_ALLOWLIST_JSON: ENV_LIST });
   const auth = createGoogleAuth(config, { provider: createGoogleProvider({ clientId: 'cid', clientSecret: SECRET, endpoints: fake.endpoints }), log: () => {} });
-  server = createServer({ live: createDevMockAdapter(), demo: createDemoAdapter(), auth });
+  server = createServer({ live: chooseLiveAdapter({ NIKUSHO_DEPLOYMENT: 'production' }, { log: () => {} }), demo: createDemoAdapter(), auth });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   port = server.address().port;
 });
@@ -154,6 +156,7 @@ test('VERCEL-5 listed account signs in and sees the dashboard; an unlisted accou
 test('VERCEL-6 vercel.json serves only public/ as static files and routes /auth and /api to the entry', () => {
   const v = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
   assert.equal(v.outputDirectory, 'public');
+  assert.equal(v.functions['api/server.js'].maxDuration, 60, 'covers the bounded token and sequential Sheets reads');
   assert.deepEqual(v.rewrites.map((r) => [r.source, r.destination]).sort(), [['/api/:path*', '/api/server'], ['/auth/:path*', '/api/server']]);
   const h = Object.fromEntries(v.headers[0].headers.map((x) => [x.key, x.value]));
   assert.match(h['Content-Security-Policy'], /default-src 'self'/); assert.equal(h['X-Frame-Options'], 'DENY');
