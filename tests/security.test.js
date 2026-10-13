@@ -101,7 +101,14 @@ test('nothing in the server, domain or UI can send registry text to another host
   // Neither imports registry/Screen Data code, so neither can send registry text anywhere.
   for (const f of ['server', 'src', 'api'].flatMap((d) => walk(join(root, d))).filter((x) => x.endsWith('.js'))) {
     const t = readFileSync(f, 'utf8');
-    if (f.endsWith('/server/source/sheetsReader.js')) {
+    if (f.endsWith('/server/source/serviceAccountToken.js')) {
+      assert.deepEqual(t.match(/^import .*$/gm), ["import { createSign } from 'node:crypto';"], 'serviceAccountToken.js imports nothing but signing');
+      assert.equal((t.match(/fetchImpl\(/g) ?? []).length, 1, 'serviceAccountToken.js: exactly one outbound call site');
+      assert.match(t, /fetchImpl\(TOKEN_URL,/);
+      assert.match(t, /const TOKEN_URL = 'https:\/\/oauth2\.googleapis\.com\/token';/);
+      assert.match(t, /const SCOPE = 'https:\/\/www\.googleapis\.com\/auth\/spreadsheets\.readonly';/);
+      assert.match(t, /body: new URLSearchParams\(\{ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `\$\{unsigned\}\.\$\{signature\}` \}\)/, 'the body is the signed assertion only');
+    } else if (f.endsWith('/server/source/sheetsReader.js')) {
       assert.equal(/^import /m.test(t), false, 'sheetsReader.js must import nothing (no data code)');
       assert.equal((t.match(/fetchImpl\(/g) ?? []).length, 1, 'sheetsReader.js: exactly one outbound call site');
       assert.match(t, /method: 'GET'/);

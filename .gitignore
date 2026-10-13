@@ -2,5 +2,12 @@
 config/allowlist.json
 .env
 .env.*
+!.env.example
+# Service-account keys of the reader account: keep them outside the repository; these patterns are a safety net.
+*.key.json
+secrets/
+config/reader-key*.json
 # Client Source samples contain real staff names and business text: keep them out of Git and out of deployments.
 docs/sample data_*/
+
+Claude outputs/

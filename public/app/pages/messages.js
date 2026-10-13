@@ -53,7 +53,8 @@ function Message(m, store, ctx) {
   const key = `m:${m.message_id}`;
   const open = ctx.isOpen(key);
   return h('div', { class: 'msg', id: `m-${m.message_id}` },
-    h('div', { class: 'msg-meta' }, h('span', { class: 'time' }, hhmm(m.at)), h('span', null, m.group), h('span', null, m.sender), mark),
+    h('div', { class: 'msg-meta' }, h('span', { class: 'time' }, hhmm(m.at)), h('span', null, m.group), h('span', null, m.sender), mark,
+      m.idDamaged && StatusBadge('tone-unknown', S.idDamaged, { compact: true, wrap: true })),
     h('div', { class: `msg-text${m.kind !== 'text' ? ' placeholder' : ''}` }, messageBody(m)),
     m.question && h('div', { class: 'qline' },
       h('a', { href: href.questions(store, m.question.question_id) },

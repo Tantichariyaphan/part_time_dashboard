@@ -43,7 +43,8 @@ function Sources(src) {
     StatusBadge(t.state === 'ok' ? 'tone-ok' : 'tone-blocked', T.tabState[t.state] ?? t.state, { compact: true }),
     t.rows != null && h('span', { class: 'muted' }, T.rows(t.rows)),
     t.used === 'validated_only' && h('span', { class: 'muted' }, T.validatedOnly),
-    t.findingCount > 0 && h('span', null, `${T.findings(t.findingCount)}：${t.findings.map((f) => `${f.row ? `${T.row} ${f.row} ` : ''}${f.column ?? ''} ${f.problem}`).join('、')}`));
+    t.findingCount > 0 && h('span', null, `${T.findings(t.findingCount)}：${t.findings.map((f) => `${f.row ? `${T.row} ${f.row} ` : ''}${f.column ?? ''} ${f.problem}`).join('、')}`),
+    t.warningCount > 0 && h('span', { class: 'muted' }, `${T.warnings(t.warningCount)}：${(t.warnings ?? []).map((f) => `${f.row ? `${T.row} ${f.row} ` : ''}${f.column ?? ''} ${f.problem}`).join('、')}`));
   const part = (label, s) => h('div', { class: 'row' },
     h('div', { class: 'row-top' }, h('b', null, label),
       s.state === 'NOT_CONNECTED' ? EvidenceBadge('NOT_CONNECTED') : StatusBadge(s.state === 'CONNECTED' ? 'tone-ok' : 'tone-blocked', T.state[s.state] ?? s.state, { compact: true }),

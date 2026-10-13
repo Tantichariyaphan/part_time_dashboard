@@ -189,3 +189,77 @@ test('READER-6 a token source that never answers fails with a code instead of ha
   const reader = createSheetsReader({ spreadsheetId: COPY_ID, tabs: ['meta'], getAccessToken: () => new Promise(() => {}), timeoutMs: 30, fetchImpl: async () => { throw new Error('not called'); } });
   await assert.rejects(reader.read(), (e) => e.code === 'token_unavailable');
 });
+
+// ------------------------------------------------------------------ reader account: service-account token (synthetic key)
+import { generateKeyPairSync, createVerify } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as joinPath } from 'node:path';
+import { createServiceAccountTokenSource, parseServiceAccountKey } from '../server/source/serviceAccountToken.js';
+
+const { privateKey: TEST_PRIV, publicKey: TEST_PUB } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
+const TEST_KEY = { type: 'service_account', client_email: 'reader-test@example-project.iam.gserviceaccount.com', private_key: TEST_PRIV, private_key_id: 'test' };
+
+test('TOKEN-1 signed assertion: read-only Sheets scope, fixed token endpoint, verifiable RS256 signature; token cached', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => ({ access_token: 'tok-1', expires_in: 3600 }) }; };
+  let t = NOW;
+  const get = createServiceAccountTokenSource(parseServiceAccountKey(JSON.stringify(TEST_KEY)), { fetchImpl, now: () => t });
+  assert.equal(await get(), 'tok-1');
+  assert.equal(await get(), 'tok-1');
+  assert.equal(calls.length, 1, 'cached');
+  assert.equal(calls[0].url, 'https://oauth2.googleapis.com/token');
+  assert.equal(calls[0].init.method, 'POST');
+  const body = new URLSearchParams(calls[0].init.body);
+  assert.deepEqual([...body.keys()].sort(), ['assertion', 'grant_type']);
+  const [h, p, sig] = body.get('assertion').split('.');
+  const claims = JSON.parse(Buffer.from(p, 'base64url').toString());
+  assert.equal(JSON.parse(Buffer.from(h, 'base64url').toString()).alg, 'RS256');
+  assert.equal(claims.scope, 'https://www.googleapis.com/auth/spreadsheets.readonly');
+  assert.equal(claims.iss, TEST_KEY.client_email);
+  assert.equal(claims.aud, 'https://oauth2.googleapis.com/token');
+  assert.ok(createVerify('RSA-SHA256').update(`${h}.${p}`).verify(TEST_PUB, Buffer.from(sig, 'base64url')));
+  assert.equal(calls[0].init.body.includes('BEGIN'), false, 'the private key itself is never sent');
+  t += 56 * 60_000; await get();
+  assert.equal(calls.length, 2, 'renewed before expiry');
+});
+
+test('TOKEN-2 bad keys and token failures give codes only; the key never appears in an error', async () => {
+  for (const [k, code] of [['{', 'key_not_json'], [{ ...TEST_KEY, type: 'authorized_user' }, 'key_not_service_account'], [{ ...TEST_KEY, client_email: 'x@gmail.com' }, 'key_bad_client_email'], [{ ...TEST_KEY, private_key: 'nope' }, 'key_bad_private_key']]) {
+    assert.throws(() => parseServiceAccountKey(typeof k === 'string' ? k : JSON.stringify(k)), (e) => e.code === code && !e.message.includes('PRIVATE'));
+  }
+  const key = parseServiceAccountKey(TEST_KEY);
+  for (const [fetchImpl, code] of [[async () => { throw new Error(TEST_PRIV); }, 'token_network'], [async () => ({ ok: false, status: 401, json: async () => ({}) }), 'token_http_401'], [async () => ({ ok: true, status: 200, json: async () => ({}) }), 'token_bad_response']]) {
+    await assert.rejects(createServiceAccountTokenSource(key, { fetchImpl })(), (e) => e.code === code && !e.message.includes('PRIVATE'));
+  }
+});
+
+test('CONFIG-3 reader key from NIKUSHO_READER_KEY_FILE / _JSON; a configured but missing file means NOT_CONNECTED, not a crash', async () => {
+  const dir = mkdtempSync(joinPath(tmpdir(), 'nikusho-key-'));
+  const file = joinPath(dir, 'reader.json');
+  let c = loadSourceConfig(env({ NIKUSHO_READER_KEY_FILE: file }));
+  assert.deepEqual([c.readerKey, c.readerKeyStatus], [null, 'file_not_found']);
+  const r = await chooseLiveAdapter(env({ NIKUSHO_READER_KEY_FILE: file })).load();
+  assert.equal(r.sources.copy.reason, 'reader_account_pending');
+  writeFileSync(file, JSON.stringify(TEST_KEY));
+  c = loadSourceConfig(env({ NIKUSHO_READER_KEY_FILE: file }));
+  assert.equal(c.readerKeyStatus, 'loaded');
+  assert.equal(c.readerKey.clientEmail, TEST_KEY.client_email);
+  c = loadSourceConfig(env({ NIKUSHO_READER_KEY_JSON: JSON.stringify(TEST_KEY) }));
+  assert.equal(c.readerKeyStatus, 'loaded');
+  writeFileSync(file, '{"type":"authorized_user"}');
+  assert.throws(() => loadSourceConfig(env({ NIKUSHO_READER_KEY_FILE: file })), (e) => e instanceof SourceConfigError && /key_not_service_account/.test(e.message));
+  // with a key, both readers are connected (they would call Google); without the client's sharing they fail with http_403
+  assert.equal(chooseLiveAdapter(env({ NIKUSHO_READER_KEY_JSON: JSON.stringify(TEST_KEY) })).kind, 'copy');
+});
+
+test('CONFIG-4 the shipped config/stores.json passes the stores/schedules validation (Bangkok, confirmed schedule history)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const json = readFileSync(new URL('../config/stores.json', import.meta.url), 'utf8');
+  const c = loadSourceConfig({ NIKUSHO_LIVE_ADAPTER: 'copy', NIKUSHO_STORES_JSON: json, NIKUSHO_COPY_STORE: JSON.parse(json).stores[0].store });
+  const s = c.adapter.stores[0];
+  assert.equal(s.production_host, 'snowmaru');
+  assert.equal(s.daily_time, '00:35');
+  const slots = c.adapter.schedules.filter((x) => x.kind === 'slot').map((x) => [x.times, x.valid_from, x.valid_to]);
+  assert.deepEqual(slots, [['12:00,22:00', '2026-09-13', '2026-10-01'], ['12:00,17:00,22:00', '2026-10-02', null]]);
+});

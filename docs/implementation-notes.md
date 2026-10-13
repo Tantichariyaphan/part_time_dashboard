@@ -165,7 +165,7 @@ been run against the client's real files: every connector item is tested on synt
 | Copy adapter (`src/adapters/copy/copyAdapter.js`, kind `copy`) | IMPLEMENTED; live state today = **NOT_CONNECTED** (Q-48) |
 | Transform `ログ` → messages | IMPLEMENTED |
 | Transform `送信ログ` → sends + Bot replies | IMPLEMENTED; `kind` blank (Q-14); reply links only by the conservative §8 rule |
-| Transform `AI質問追跡` → questions | PARTIAL — rows as recorded (`waiting` only); no answers, no run/send link (Q-21, Q-22, Q-23); gap since 10/5 23:36 flagged (Q-52) |
+| Transform `AI質問追跡` → questions | PARTIAL — rows as recorded; possibly-related answers by the REQ §5-1 rule (`link=candidate` only, never confirmed; `waiting` → `candidate`) since 10/13; no confirmed answer, no run/send link (Q-21, Q-23); records after 10/5 23:36 flagged as possibly incomplete (Q-52) |
 | Run status from `心拍` | BLOCKED (Q-15, Q-49) — `心拍` is validated only; runs are listed from `schedules` and shown "状態未判定" |
 | Copy `meta` → banner | IMPLEMENTED with a proposed derivation (Q-09); `status` values other than `ok`/`stale`/`error` stop the banner (Q-50) |
 | Heartbeat reader (`beats`, `alerts`) | IMPLEMENTED as a separate source; live state NOT_CONNECTED (Q-48) |
@@ -186,7 +186,7 @@ None functionally. Comments that said PIATEC builds the copy were corrected (`sr
 3. Once the reader account and its environment are decided (Q-48, Q-01): add its token source and pass it to `chooseLiveAdapter(env, { getAccessToken })` — the only missing piece in code. Then run TV9 / TV24 against the real copy (type A, judged by the client).
 4. After Q-49: run status from the copy (no rule before the client's announcement).
 5. After Q-52: lift or re-date `COPY_SOURCE_LIMITS.questionsIncompleteFrom` according to the client's fix/backfill answer.
-6. After Q-17 / Q-22: resend tie-up and candidate answers.
+6. After Q-17: resend tie-up. (Candidate answers: done 10/13 by the REQ §5-1 rule, see §8.4; confirmed answers need evidence records, M-2.)
 7. Decide hosting with the client (Q-01).
 
 ## 8. View-only Copy connector (built 2026-10-07)
@@ -219,12 +219,12 @@ Mock (`devmock`) and demo adapters are unchanged; `devmock` stays the default li
 | Header: forbidden field (`userId`, `宛先ID`, `画像URL`, also inside an annotated name), missing / unexpected / duplicate / re-ordered column | that tab; the reader does not even download the rows of a tab whose header names a forbidden field |
 | `元の行番号` missing, not a positive integer, or duplicated | that tab |
 | Blank row, row wider than the header | that tab |
-| `ログ`: `群` not one of the 5 groups; `グループID` suffix not in the REQ §5-1 table or not matching `群`; `messageId` blank or rounded (`E`, `.`, `,`); `再送`/`取消` other than blank or the mark; a link in `内容` of a non-text row | `ログ` |
+| `ログ`: `群` not one of the 5 groups; `グループID` suffix not in the REQ §5-1 table or not matching `群`; `messageId` blank; `再送`/`取消` other than blank or the mark; a link in `内容` of a non-text row | `ログ` |
 | `送信ログ`: `宛先の群` not one of the 5 groups or `OWNER` | `送信ログ` |
 | `AI質問追跡`: `group` not one of the 5 groups; `question_id` blank or duplicated | `AI質問追跡` |
 | Timestamps not interpretable (ISO with offset; `yyyy/MM/dd H:mm:ss` only with `NIKUSHO_COPY_TIMEZONE`; impossible dates refused) | that tab |
 | A LINE-style id (`U`/`C`/`R` + 32 hex) in any cell other than `グループID`; a URL outside the free-text columns | that tab |
-| `meta`: wrong columns, a row for an unknown tab, two rows for one tab | the whole copy |
+| `meta`: wrong columns, a row for an unknown tab, two rows for one tab | the whole copy. A single row with `tab` = `meta` (describing the meta tab itself; seen in the live copy 2026-10-13) is accepted and not used for freshness — changed 2026-10-13 |
 | `meta` row of a tab missing, `contract_version` ≠ `v1`, `last_read_at` unreadable | that tab |
 
 Findings carry tab, `元の行番号` (or the sheet position `#n` when the id cell is malformed), column (a contract name, an exact
@@ -240,27 +240,35 @@ sending evidence to the client.
 | `NIKUSHO_HEARTBEAT_SPREADSHEET_ID` | id of the Machine Heartbeat Sheet (absent → heartbeat NOT_CONNECTED); must differ from the copy |
 | `NIKUSHO_COPY_STORE` | the `stores.store` the copy belongs to |
 | `NIKUSHO_COPY_TIMEZONE` | optional IANA zone of zone-less copy timestamps and of the column-6 `HH:MM` (Q-12). Without it, zone-less times block the tab and no Bot reply is linked |
-| `NIKUSHO_STORES_JSON` / `NIKUSHO_STORES_FILE` | `{"stores":[…],"schedules":[…]}` with the REQ §5-3 columns, checked by the existing Screen Data validation. Bangkok values confirmed 10/7 (slot history, daily 00:35, `production_host` `snowmaru`) belong here, not in code |
+| `NIKUSHO_STORES_JSON` / `NIKUSHO_STORES_FILE` | `{"stores":[…],"schedules":[…]}` with the REQ §5-3 columns, checked by the existing Screen Data validation. `config/stores.json` holds Bangkok: CONFIRMED 10/7 slot history, daily 00:35, `production_host` `snowmaru`; **PROVISIONAL** (REQ examples / samples, listed in the file's `_provisional`): store id, display name, `business_day_start` 05:00, deadlines 90/60, `text_patrol` 10:00-24:00, daily `valid_from` |
+| `NIKUSHO_READER_KEY_FILE` / `NIKUSHO_READER_KEY_JSON` | JSON key of the reader **service account** (`server/source/serviceAccountToken.js`: signed assertion → token with scope `spreadsheets.readonly`, cached ~55 min). Keep the file outside the project folder. A configured path whose file does not exist yet → NOT_CONNECTED (prepared before the key exists) |
 
-No spreadsheet id, e-mail, store or credential is in the repository. Ids are never sent to the browser, never logged, never echoed
-in errors. The reader account's token source is **not configurable yet**: no environment variable supplies it, because the account
-and how it authenticates are undecided (Q-48, Q-01). Code hook: `chooseLiveAdapter(env, { getAccessToken })`.
+No spreadsheet id, e-mail or credential is in the repository (`.env` and key files are git-ignored; template `.env.example`).
+Ids are never sent to the browser, never logged, never echoed in errors.
+
+Commands (read `.env`):
+- `npm run check:sources` — connection check without the web server or sign-in: prints the reader account e-mail, each file's
+  state/reason and the contract findings (codes, row numbers, column names; never cell values or ids). `reader_account_pending`
+  = no key yet; `http_403` = key works but the client has not shared the file yet; `CONNECTED` = ready.
+- `npm run start:live` — the dashboard with live data on http://localhost:3000 (Google sign-in + allowlist required).
+The Vercel entry (`api/server.js`) still serves mock data only; live data there needs the client's written agreement (Q-01).
 
 ### 8.4 Transform rules actually implemented
 
 | Copy | Screen Data | Rule |
 |---|---|---|
-| `ログ` | messages | `message_id`=`messageId`; rows sharing a `messageId` are one message (first copied row kept, Q-17); `kind` text/image→photo/sticker, everything else `other`; text only for `text` rows; `取消` → optional marker `cancelled=yes`, text removed (Q-17 option A, display only); `run_id`, `question_id`, `question_link` blank (Q-21, Q-22) |
+| `ログ` | messages | `message_id`=`messageId`; rows sharing a `messageId` are one message (first copied row kept, Q-17); a `messageId` the sheet stored as a number (`E` / `.` / `,`, digits lost) does **not** block the tab (decision 2026-10-13): the row is keyed `ROW-<元の行番号>`, never merged, marked `id_damaged=yes` (③ badge "ID破損"), listed as a non-blocking notice on ⑥ and in `check:sources`; the rounded value is never carried or shown — 11 of 7,461 live rows on 2026-10-13; `kind` text/image→photo/sticker, everything else `other`; text only for `text` rows; `取消` → optional marker `cancelled=yes`, text removed (Q-17 option A, display only); `run_id` blank (Q-21); `question_id` / `question_link=candidate` only when the message is a possible answer to exactly one question (see `AI質問追跡` row), otherwise blank |
 | `送信ログ` | sends | `send_id`=`SL-<元の行番号>` (proposed, Q-11); `target_kind` owner when `宛先の群`=`OWNER`; `result` OK…→sent, `NG(`→failed, `ATTEMPTING_NO_RETRY`→unknown, anything else blank (unclassified, not a failure); `kind` blank (Q-14); optional `replies_to_message=yes` when column 6 is filled |
 | `送信ログ` column 6 | messages `replies_json`, `handling` | data-mapping §8, applied conservatively: confirmed only when the calendar-day AND business-day readings give the same single message, the `HH:MM` is read in `NIKUSHO_COPY_TIMEZONE`, and the message is not later than the send; two or more → ambiguous (attached to none); replies that are not confirmed count as "unknown origin" on ⑦ |
-| `AI質問追跡` | questions | `waiting` kept; any other `state` → unknown (needs evidence, Q-23); no answers, no `run_id` / `send_id` |
+| `AI質問追跡` | questions | `waiting` kept; any other `state` → unknown (needs evidence, Q-23); no `run_id` / `send_id`. **Possibly-related answers (REQ §5-1, added 10/13):** a `ログ` row with the same group AND the same sender (exact, trimmed) as the question's `group` / `who`, strictly later than `送信時刻`, not `取消` → `answers_json` entry `{message_id, at, who, text, link: candidate}`; `waiting` → `candidate`. Never `confirmed`; no time window (the REQ sets none; answers may cross days, TV22); blank `who` or an unreadable time → no candidates; a message matching two or more questions is listed under each question but its own `question_id` stays blank. Candidates are excluded from the response rate and time to answer (`src/domain/metrics.js`). `check:sources` prints the counts only |
 | `心拍` | — | validated only; no run row (Q-49). Runs are listed from `schedules`: `not_due` before the deadline, then "状態未判定" — never success, failure, missing or a rate |
 | copy `meta` | Dashboard `meta` | `generated_at` = `last_success_at` = `source_through` = `last_read_at` (proposed, Q-09); `status` passed through (only `ok` is normal; `stale`/`error` and unknown values stop the banner, Q-50); a blocked tab → `status=error` with the finding summary |
 | Heartbeat Sheet | beats, alerts | as-is after the column check (REQ §5-3 columns) |
 
 Limits declared by the adapter (facts from the client's 10/7 update, not rules): `runStatus: UNCONFIRMED` (Q-49) and
-`questionsIncompleteFrom: 2026-10-05T23:36:00+07:00` (Q-52) — ①, ④ and ⑦ say the question records are incomplete instead of
-showing a low count as complete.
+`questionsIncompleteFrom: 2026-10-05T23:36:00+07:00` (Q-52) — ①, ④ and ⑦ say the question records after that time **may be incomplete** instead of
+showing a low count as complete. (Wording changed 10/13: rows after 10/5 exist again in the live copy; the screen does not claim
+the gap is fixed or that nothing was recorded.)
 
 ### 8.5 Freshness / performance
 
@@ -273,5 +281,6 @@ validate ≈0.2 s + transform ≈0.45 s per read.
 
 - A heartbeat read failure or blocked heartbeat tab shows "未接続" on ① / ⑥; the reason (ERROR / BLOCKED) is on the ⑥ data-source card.
 - A failed copy read shows "update stopped" with no data for up to one read interval; the last good read is not kept (access may have been revoked).
-- A numeric `messageId` the sheet rounded without an exponent cannot be detected (Q-12: the client should keep it as text).
+- A numeric `messageId` the sheet rounded without an exponent cannot be detected (Q-12: the client should keep it as text). Rows whose ID is visibly rounded are shown by row number (above); whether the client can restore the real IDs is open.
 - Resend rows with their own `messageId` are counted as separate messages until Q-17 says how resends are tied.
+- Possibly-related answers are a rule, not evidence: a later unrelated message from the same person, or one written to another open question, is still listed as "関連の可能性（未確認）" (REQ §5-1 accepts this). If the live `AI質問追跡.who` does not use the same display name as `ログ.発言者`, no candidates appear — `check:sources` shows the count so this can be checked without printing names.

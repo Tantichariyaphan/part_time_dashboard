@@ -30,7 +30,7 @@ export function view(env) {
   return h('div', { class: 'stack' },
     h('div', { class: 'card card--glass keep-color' }, Legend()),
     stores.map((s) => {
-      const head = { title: s.display_name, href: `#/today?store=${encodeURIComponent(s.store)}`, aside: EvidenceBadge(s.capability.evidence) };
+      const head = { title: s.display_name, href: `#/today?store=${encodeURIComponent(s.store)}`, aside: EvidenceBadge(s.capability.evidence, { title: s.capability.evidenceReason === 'run_status_unconfirmed' ? S.runStatusUnconfirmed : undefined }) };
       if (s.connection !== 'connected') return Card(head, NotConnectedState());
       return Card(head,
         h('div', { class: 'stack' },

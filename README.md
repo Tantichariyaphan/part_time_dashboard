@@ -7,7 +7,7 @@ No real data is connected. Since **2026-10-07 the client builds and runs the Cop
 
 ```
 npm install        # no packages are installed; it only checks the environment and writes package-lock.json
-npm test           # node --test "tests/*.test.js"   (178 tests)
+npm test           # node --test "tests/*.test.js"   (182 tests)
 npm start          # node server/index.js
 ```
 
@@ -16,10 +16,10 @@ npm start          # node server/index.js
 * Defaults: `HOST=127.0.0.1`, `PORT=3000`. The dev gate accepts loopback only; open the URL printed at start-up.
 * Another port: `PORT=3001 npm start` (macOS/Linux) or `$env:PORT=3001; npm start` (Windows PowerShell).
 * Mock scenario (live entry only): `NIKUSHO_DEV_SCENARIO=full|phase1|stale-messages|stopped|error|machine-down`; no live data at all: `NIKUSHO_LIVE_ADAPTER=none`.
-* Client's View-only Copy (real data): `NIKUSHO_LIVE_ADAPTER=copy` with `NIKUSHO_AUTH=google` (refused behind the dev gate) and the
-  server-side variables in `docs/implementation-notes.md` §8.3 (`NIKUSHO_COPY_SPREADSHEET_ID`, `NIKUSHO_HEARTBEAT_SPREADSHEET_ID`,
-  `NIKUSHO_COPY_STORE`, `NIKUSHO_STORES_JSON`, optional `NIKUSHO_COPY_TIMEZONE`). Today both files show **NOT_CONNECTED** on ⑥:
-  the reader account and its token source do not exist yet (Q-48).
+* Client's View-only Copy (real data): copy `.env.example` to `.env`, fill it in (sheet ids, reader service-account key file outside
+  this folder, sign-in settings), then `npm run check:sources` (connection check, no sign-in) and `npm run start:live`
+  (dashboard, Google sign-in + allowlist; real data is refused behind the dev gate). Details: `docs/implementation-notes.md` §8.3.
+  Without the key file both files show **NOT_CONNECTED** (Q-48).
 * `npm run demo:snapshot` regenerates `src/adapters/demo/demoScreenData.json` (not needed to run).
 
 ## Viewer check (authentication / authorization)

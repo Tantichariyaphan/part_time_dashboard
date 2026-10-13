@@ -8,13 +8,14 @@
 // Implemented only where the contract and the documented rules allow it:
 //   ログ      -> messages   (IMPLEMENTED)
 //   送信ログ   -> sends + Bot replies under messages (IMPLEMENTED; reply link only by the confirmed column-6 rule)
-//   AI質問追跡 -> questions  (PARTIAL: rows as recorded; no answers, no run/send link, no states beyond `waiting`; Q-21/Q-22/Q-23/Q-52)
+//   AI質問追跡 -> questions  (PARTIAL: rows as recorded + possibly-related answers by the REQ §5-1 rule, link=candidate only;
+//                            no confirmed answer, no run/send link, no states beyond waiting/candidate; Q-21/Q-23/Q-52)
 //   心拍      -> no run rows (BLOCKED: how to read run status is the client's decision, Q-49; `AI=scheduled-off` stays unclassified)
 import { COPY_DATA_TAB_KEYS, COPY_TAB, COPY_TO_SCREEN, CANCEL_MARK, MESSAGE_KIND_MAP, OWNER_RECIPIENT, ROW_ID } from '../../contract/copyContract.js';
 import { COLUMNS, OPTIONAL_COLUMNS } from '../../contract/columns.js';
 import { CONTRACT_VERSION, TAB_NAME } from '../../contract/enums.js';
 import { businessDayOf, dateString, formatIso, localParts } from '../../domain/time.js';
-import { parseCopyTime } from './validate.js';
+import { ID_DAMAGED, parseCopyTime } from './validate.js';
 
 const byRowId = (a, b) => Number(a[ROW_ID]) - Number(b[ROW_ID]);
 const orNull = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
@@ -32,9 +33,11 @@ export function sendResult(text) {
 function buildMessages(records, store, tz, unclassified) {
   const byId = new Map();
   for (const r of [...records].sort(byRowId)) {
-    const id = r.messageId.trim();
+    const damaged = r[ID_DAMAGED] === true;
+    // A damaged messageId identifies nothing: the row is keyed by its own 元の行番号 and never merged with another row.
+    const id = damaged ? `ROW-${r[ROW_ID].trim()}` : r.messageId.trim();
     const cancelled = r['取消'].trim() === CANCEL_MARK;
-    const prev = byId.get(id);
+    const prev = damaged ? null : byId.get(id);
     if (prev) { // same messageId = one logical message (REQ §5-1); which row's values win is Q-17 -> the first copied row is kept
       prev.cancelled = prev.cancelled || cancelled; // a cancel on any row hides the content (safe side)
       prev.collapsed += 1;
@@ -43,7 +46,7 @@ function buildMessages(records, store, tz, unclassified) {
     const kindRaw = r['種別'].trim();
     const kind = MESSAGE_KIND_MAP[kindRaw] ?? 'other';
     if (!MESSAGE_KIND_MAP[kindRaw] && !['video', 'file'].includes(kindRaw)) unclassified.messageKind += 1;
-    byId.set(id, { r, kind, cancelled, collapsed: 0, atMs: parseCopyTime(r['日時'], tz) });
+    byId.set(id, { r, kind, cancelled, damaged, collapsed: 0, atMs: parseCopyTime(r['日時'], tz) });
   }
   let collapsed = 0;
   const out = [...byId.entries()].map(([id, m]) => {
@@ -58,11 +61,12 @@ function buildMessages(records, store, tz, unclassified) {
       text: m.kind === 'text' && !m.cancelled ? orNull(m.r['内容']) : null, // photo/sticker/other carry no text; cancelled never shows content (Q-17)
       handling: null, // set below only from a confirmed reply link; otherwise unknown (Q-18)
       replies_json: null,
-      question_id: null, // candidate answers are not produced from the copy yet (Q-22)
+      question_id: null, // set by linkCandidateAnswers() only when exactly one question matches (link=candidate, never confirmed)
       question_link: null,
       run_id: null, // message -> run link has no source column (Q-21)
       updated_at: null,
       cancelled: m.cancelled ? 'yes' : null, // display-only marker; representation in the ledger is Q-17 (option A, proposed)
+      id_damaged: m.damaged ? 'yes' : null, // messageId lost by the sheet: shown as ROW-<元の行番号>; marker for ③ and ⑥
       _atMs: m.atMs,
     };
   });
@@ -148,22 +152,77 @@ function buildQuestions(records, store, tz, unclassified) {
   return [...records].sort(byRowId).map((r) => {
     const state = r.state.trim() === 'waiting' ? 'waiting' : null; // other values need evidence records (REQ §5-3, Q-23) -> shown as unknown
     if (state === null) unclassified.questionState += 1;
+    const sentMs = parseCopyTime(r['送信時刻'], tz);
     return {
       store: store.store,
       question_id: r.question_id.trim(),
       run_id: null, // slot -> run link: Q-21; polling-loop questions: Q-49 / Q-52
       send_id: null, // question -> send link: Q-21
-      sent_at: formatIso(parseCopyTime(r['送信時刻'], tz)),
+      sent_at: formatIso(sentMs),
       group: r.group.trim(),
       who: orNull(r.who),
       question_text: orNull(r.question_th),
       state,
       closed_reason: null,
       closed_at: null,
-      answers_json: null, // no answer is linked from the copy (Q-22 window; confirmed answers need M-2)
+      answers_json: null, // filled by linkCandidateAnswers(): link=candidate only; a confirmed answer needs evidence records (M-2)
       updated_at: null,
+      _sentMs: sentMs,
     };
   });
+}
+
+/**
+ * Possibly-related answers, REQ §5-1 (rule as written, nothing added):
+ *   a ログ row whose group AND sender equal the question's `group` / `who`, that is later than the question's 送信時刻,
+ *   and that is not 取消  ->  "คำตอบที่อาจเกี่ยวข้อง・ยังไม่ยืนยัน" (link = candidate).
+ *  - NEVER `confirmed`: the copy cannot prove that a message answers a question (REQ §5-1; TV22 = 0 wrong confirmations).
+ *    Candidates are excluded from the response rate and time-to-answer by src/domain/metrics.js.
+ *  - No time window: the REQ sets none (answers may cross days, TV22), so none is invented here. A later unrelated
+ *    message from the same person is still a candidate - that is exactly why it stays unconfirmed.
+ *  - Comparison is exact after trimming spaces (group label, display name). No name folding, no userId (not in the copy).
+ *  - Missing evidence -> no candidates: blank who/group, unreadable 送信時刻 or message time.
+ *  - Strictly later (`>`): a message at the same instant as the question is not "after" it.
+ *  - Message side (`question_id` / `question_link`): a message has room for one question. It is set (candidate) only when
+ *    the message is a candidate for exactly ONE question; with two or more open questions to the same person it stays
+ *    blank (the question side still lists it), so the message screen never points at a guessed question.
+ *  - A question whose recorded state is `waiting` becomes `candidate` when at least one candidate exists (REQ §5-3:
+ *    the current records support waiting / candidate only). Any other recorded state is left as it is.
+ */
+function linkCandidateAnswers(messages, questions) {
+  const counts = { questionsWithCandidates: 0, candidateLinks: 0, messagesWithSeveralQuestions: 0 };
+  const index = new Map(); // group|sender -> messages, ordered by time
+  for (const m of messages) {
+    if (m.cancelled === 'yes' || !Number.isFinite(m._atMs)) continue;
+    const g = String(m.group ?? '').trim();
+    const who = String(m.sender ?? '').trim();
+    if (!g || !who) continue;
+    const key = `${g}|${who}`;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push(m);
+  }
+  for (const list of index.values()) list.sort((a, b) => a._atMs - b._atMs);
+  const perMessage = new Map(); // message -> questions it is a candidate for
+  for (const q of questions) {
+    const g = String(q.group ?? '').trim();
+    const who = String(q.who ?? '').trim();
+    if (!g || !who || !Number.isFinite(q._sentMs)) continue;
+    const answers = (index.get(`${g}|${who}`) ?? []).filter((m) => m._atMs > q._sentMs);
+    if (!answers.length) continue;
+    q.answers_json = JSON.stringify(answers.map((m) => ({ message_id: m.message_id, at: m.at, who: m.sender, text: m.text, link: 'candidate' })));
+    if (q.state === 'waiting') q.state = 'candidate';
+    counts.questionsWithCandidates += 1;
+    counts.candidateLinks += answers.length;
+    for (const m of answers) {
+      if (!perMessage.has(m)) perMessage.set(m, []);
+      perMessage.get(m).push(q.question_id);
+    }
+  }
+  for (const [m, qids] of perMessage) {
+    if (qids.length === 1) { m.question_id = qids[0]; m.question_link = 'candidate'; } else counts.messagesWithSeveralQuestions += 1;
+  }
+  for (const q of questions) delete q._sentMs;
+  return counts;
 }
 
 /** Dashboard Data `meta` rows from the copy `meta` (proposed derivation, Q-09): all three times = copy `last_read_at`. */
@@ -201,8 +260,9 @@ export function transformCopy(v, { store, timezone, nowMs }) {
   const t = v.tabs;
   const { messages, collapsed } = buildMessages(t.log.ok ? t.log.records : [], store, timezone, unclassified);
   const sends = buildSends(t.sendLog.ok ? t.sendLog.records : [], store, timezone, unclassified);
-  const replyLinks = linkReplies(messages, sends, store, timezone);
   const questions = buildQuestions(t.questions.ok ? t.questions.records : [], store, timezone, unclassified);
+  const answerLinks = linkCandidateAnswers(messages, questions); // before linkReplies(), which drops the message times
+  const replyLinks = linkReplies(messages, sends, store, timezone);
 
   const raw = {
     meta: tab('meta', COPY_DATA_TAB_KEYS.map((k) => metaRow(COPY_TO_SCREEN[k], t[k], timezone, nowMs))),
@@ -215,9 +275,11 @@ export function transformCopy(v, { store, timezone, nowMs }) {
     tabs: COPY_DATA_TAB_KEYS.map((k) => ({
       tab: COPY_TAB[k], state: t[k].ok ? 'ok' : 'blocked', rows: t[k].ok ? t[k].records.length : null,
       findingCount: t[k].findingCount, findings: t[k].findings.slice(0, 10),
+      warningCount: t[k].warningCount ?? 0, warnings: (t[k].warnings ?? []).slice(0, 20),
       used: k === 'heartbeat' ? 'validated_only' : 'transformed',
     })),
     replyLinks,
+    answerLinks, // counts only (no ids, names or text)
     collapsedMessageRows: collapsed,
     unclassified,
   };

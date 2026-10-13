@@ -46,7 +46,20 @@ export function parseCopyTime(value, timezone) {
 }
 
 function newTabResult(name) {
-  return { tab: name, ok: true, findingCount: 0, findings: [], records: [] };
+  return { tab: name, ok: true, findingCount: 0, findings: [], warningCount: 0, warnings: [], records: [] };
+}
+
+/**
+ * Marks a `ログ` record whose `messageId` was stored by the sheet as a number (scientific / decimal / thousands form).
+ * The digits are lost, so the value cannot identify the message. Decision 2026-10-13: such rows do NOT block the tab;
+ * they are shown under their 元の行番号 and flagged (transform.js). The value itself is never carried or printed.
+ */
+export const ID_DAMAGED = Symbol('messageId damaged');
+
+/** Non-blocking notice: same shape as a finding (tab / row / column / problem), never a cell value. */
+function warn(result, row, column, problem) {
+  result.warningCount += 1;
+  if (result.warnings.length < MAX_FINDINGS_KEPT) result.warnings.push({ tab: result.tab, row, column, problem });
 }
 
 /** Sheet row position of a record (header = row 1). Not enumerable, so it never mixes with cell values. */
@@ -128,7 +141,9 @@ const ROW_CHECKS = {
     else if (GROUP_ID_SUFFIX[suffix] !== group) note(result, id, 'グループID', 'group_id_mismatch');
     const mid = rec.messageId.trim();
     if (!mid) note(result, id, 'messageId', 'missing_value');
-    else if (/[eE.,]/.test(mid)) note(result, id, 'messageId', 'rounded_identifier'); // a number the sheet rounded (e.g. 1.23E+17)
+    else if (/[eE.,]/.test(mid)) { // a number the sheet rounded (e.g. 1.23E+17): flagged, shown by row number, never guessed
+      if (id) { rec[ID_DAMAGED] = true; warn(result, id, 'messageId', 'rounded_identifier'); } else note(result, id, 'messageId', 'rounded_identifier');
+    }
     if (blank(rec['種別'])) note(result, id, '種別', 'missing_value');
     if (!['', RESEND_MARK].includes(rec['再送'].trim())) note(result, id, '再送', 'unexpected_value');
     if (!['', CANCEL_MARK].includes(rec['取消'].trim())) note(result, id, '取消', 'unexpected_value');
@@ -176,15 +191,26 @@ function validateDataTab(key, table, timezone) {
   return result;
 }
 
-/** Copy `meta`: one row per data tab; `contract_version` must be v1; `last_read_at` must be a readable time. */
+/**
+ * Copy `meta`: one row per data tab; `contract_version` must be v1; `last_read_at` must be a readable time.
+ * A row describing the `meta` tab itself is accepted (seen in the live copy 2026-10-13; the client's contract defines
+ * meta's columns, not its row set - Q-50). It carries no record data and is NOT used for any tab's freshness.
+ * A second `meta` row, or any other unknown tab name, still blocks the copy.
+ */
 function validateMeta(table, timezone) {
   const result = newTabResult(COPY_TAB.meta);
   const perTab = {};
+  let selfRow = false;
   if (!checkHeader(result, table, COPY_COLUMNS.meta, { exactOrder: true })) return { result, perTab };
   const records = toRecords(result, table, null);
   const names = Object.fromEntries(COPY_DATA_TAB_KEYS.map((k) => [COPY_TAB[k], k]));
   for (const rec of records) {
     scanCells(result, 'meta', rec, null);
+    if (rec.tab.trim() === COPY_TAB.meta) {
+      if (selfRow) note(result, null, 'tab', 'duplicate_meta_row');
+      selfRow = true;
+      continue;
+    }
     const key = names[rec.tab.trim()];
     if (!key) { note(result, null, 'tab', 'unexpected_meta_tab'); continue; }
     if (perTab[key]) { note(result, null, 'tab', 'duplicate_meta_row'); continue; }

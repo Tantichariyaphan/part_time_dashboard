@@ -4,9 +4,13 @@
   "private": true,
   "description": "NIKUSHO AI Monitoring System - Dashboard Skeleton + Screen Data Contract + Mock/Demo Adapter + read-only API. NOT production source integration.",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server/index.js",
+    "start:live": "node --env-file=.env server/index.js",
+    "check:sources": "node --env-file=.env scripts/check-sources.js",
     "test": "node --test \"tests/*.test.js\"",
     "demo:snapshot": "node scripts/build-demo-snapshot.js"
   }

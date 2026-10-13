@@ -9,14 +9,18 @@
 //   NIKUSHO_STORES_JSON                {"stores":[...], "schedules":[...]} with the REQ §5-3 columns
 //   NIKUSHO_STORES_FILE                or: path of that JSON file. When both are set, NIKUSHO_STORES_JSON is used.
 //
-// No spreadsheet id, store, e-mail or credential is built in. Reader credentials: none are configured here - the reader
-// account does not exist yet and how it authenticates depends on the client's environment (Q-48, Q-01). Until then the
-// readers are NOT_CONNECTED and no live data exists.
-import { readFileSync } from 'node:fs';
+//   NIKUSHO_READER_KEY_FILE            path of the READER service account's JSON key (keep it OUTSIDE the repository), or
+//   NIKUSHO_READER_KEY_JSON            the key JSON itself (hosted deployments). When both are set, the JSON is used.
+//                                      Absent -> both readers NOT_CONNECTED (reader account pending, Q-48).
+//
+// No spreadsheet id, store, e-mail or credential is built in. The reader account is a service account (client 10/7:
+// "e.g. a service account"); it is separate from the dashboard login and can read only what the client shares with it.
+import { existsSync, readFileSync } from 'node:fs';
 import { COLUMNS } from '../../src/contract/columns.js';
 import { normalizeTabs } from '../../src/normalize/normalize.js';
 import { validateScreen } from '../../src/normalize/validate.js';
 import { isSpreadsheetId } from './sheetsReader.js';
+import { parseServiceAccountKey, TokenError } from './serviceAccountToken.js';
 
 export class SourceConfigError extends Error {}
 
@@ -50,6 +54,20 @@ function checkStores(json) {
   return { stores: screen.stores, schedules: screen.schedules };
 }
 
+function readReaderKey(env) {
+  let text = null;
+  let name = null;
+  if (env.NIKUSHO_READER_KEY_JSON) { text = env.NIKUSHO_READER_KEY_JSON; name = 'NIKUSHO_READER_KEY_JSON'; } else if (env.NIKUSHO_READER_KEY_FILE) {
+    name = 'NIKUSHO_READER_KEY_FILE';
+    if (!existsSync(env.NIKUSHO_READER_KEY_FILE)) return { missing: true }; // prepared before the key exists: NOT_CONNECTED
+    try { text = readFileSync(env.NIKUSHO_READER_KEY_FILE, 'utf8'); } catch { throw new SourceConfigError('NIKUSHO_READER_KEY_FILE cannot be read (is the key file in place?)'); }
+  }
+  if (text === null) return null;
+  try { return parseServiceAccountKey(text); } catch (e) {
+    throw new SourceConfigError(`${name} is not a usable service-account key (${e instanceof TokenError ? e.code : 'invalid'})`);
+  }
+}
+
 export function loadSourceConfig(rawEnv = process.env) {
   const env = Object.fromEntries(Object.entries(rawEnv).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
   const copyId = env.NIKUSHO_COPY_SPREADSHEET_ID || null;
@@ -66,6 +84,11 @@ export function loadSourceConfig(rawEnv = process.env) {
   return {
     copySpreadsheetId: copyId,
     heartbeatSpreadsheetId: heartbeatId,
+    ...(() => {
+      const k = readReaderKey(env);
+      // readerKey: { clientEmail, privateKey } | null - never logged (except the e-mail) or returned to the browser
+      return { readerKey: k && !k.missing ? k : null, readerKeyStatus: !k ? 'not_configured' : k.missing ? 'file_not_found' : 'loaded' };
+    })(),
     adapter: { store, timezone, stores, schedules },
   };
 }

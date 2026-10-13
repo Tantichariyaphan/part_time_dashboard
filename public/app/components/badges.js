@@ -8,9 +8,9 @@ export function StatusBadge(tone, label, { compact = false, wrap = false, title 
 
 /** Data-level evidence label (CONFIRMED / CANDIDATE / UNKNOWN / NOT_CONNECTED). Neutral outline styles only. */
 const GLYPH = { CONFIRMED: '✓', CANDIDATE: '≈', UNKNOWN: '?', NOT_CONNECTED: '⊘' };
-export function EvidenceBadge(level) {
+export function EvidenceBadge(level, { title } = {}) {
   const key = String(level ?? 'UNKNOWN');
-  return h('span', { class: `evidence evidence--${key.toLowerCase()}`, title: key },
+  return h('span', { class: `evidence evidence--${key.toLowerCase()}`, title: title ?? key },
     h('i', { 'aria-hidden': 'true' }, GLYPH[key] ?? '?'), S.evidence[key] ?? key, h('span', { class: 'sr-only' }, ` ${key}`));
 }
 

@@ -77,7 +77,7 @@ export const S = {
   },
   // Run status is not read from the source until the client decides how (Q-49). Wording provisional (Q-24).
   runStatusUnconfirmed: '巡回結果の読み方が発注者側で未決定のため、巡回・日次の状態は判定していません（予定時刻のみ表示）。',
-  questionsIncomplete: (t) => `${t} 以降の質問は記録元にまだ記録されていません（発注者が修正中）。件数は実際より少ない可能性があります。`,
+  questionsIncomplete: (t) => `${t} 以降の質問記録は不完全な可能性があります。件数は実際より少ない可能性があります。`, // Q-52: completeness unconfirmed; never claims recovery
   questionsIncompleteShort: '記録が不完全',
   runDerived: { unrecognized: '未知の状態値', deadline_passed_running: '実行中のまま期限超過' },
   legend: [
@@ -110,6 +110,7 @@ export const S = {
     sends: '送信（LINE受付）', none: '—', asStored: '記録の値をそのまま表示',
   },
   cancelled: 'メッセージは取り消されました',
+  idDamaged: 'ID破損（行番号で表示）', // the sheet stored messageId as a number; the message is shown under its row number
   repliesUnreadable: '返信を読み取れません',
   answersUnreadable: '回答を読み取れません',
   noAnswers: 'まだありません',
@@ -146,6 +147,7 @@ export const S = {
     tabState: { ok: '合格', blocked: '停止' }, rows: (n) => `${n}行`, findings: (n) => `指摘 ${n}件`,
     replies: (c, a, u) => `返信の紐付け：確定 ${c}／特定不可 ${a}／紐付けなし ${u}`,
     validatedOnly: '検証のみ（巡回状態は未判定）', row: '元の行番号',
+    warnings: (n) => `注意 ${n}件（表示は継続）`,
   },
   periods: {
     d7: '7日', d30: '30日', patrolRate: '巡回 成功率', dailyRate: '日次 成功率', stopped: '欠落／停止／未確認', questions: '質問送信数',

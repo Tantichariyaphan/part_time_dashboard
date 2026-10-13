@@ -28,6 +28,9 @@ const GOOGLE_OAUTH_URLS = new Set(['https://accounts.google.com/o/oauth2/v2/auth
 // nothing else. It is GET-only and receives no registry data (see security.test.js).
 const SHEETS_READER = '/server/source/sheetsReader.js';
 const SHEETS_READER_URLS = new Set(['https://sheets.googleapis.com/v4/spreadsheets/']);
+// The reader account's token source may name Google's token endpoint and the read-only Sheets scope - and nothing else.
+const READER_TOKEN = '/server/source/serviceAccountToken.js';
+const READER_TOKEN_URLS = new Set(['https://oauth2.googleapis.com/token', 'https://www.googleapis.com/auth/spreadsheets.readonly']);
 
 test('no external services: UI/server code references no absolute http(s) URL', () => {
   for (const f of code) {
@@ -35,6 +38,10 @@ test('no external services: UI/server code references no absolute http(s) URL', 
     for (const l of t) {
       if (f.endsWith(GOOGLE_PROVIDER)) {
         for (const u of l.match(/https?:\/\/[^'"`\s)]*/g) ?? []) assert.ok(GOOGLE_OAUTH_URLS.has(u), `${f}: unexpected URL ${u}`);
+        continue;
+      }
+      if (f.endsWith(READER_TOKEN)) {
+        for (const u of l.match(/https?:\/\/[^'"`\s)]*/g) ?? []) assert.ok(READER_TOKEN_URLS.has(u), `${f}: unexpected URL ${u}`);
         continue;
       }
       if (f.endsWith(SHEETS_READER)) {

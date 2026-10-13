@@ -37,7 +37,8 @@ export const questionsIncompleteFromMs = (ctx) => {
 export function publicSources(ctx) {
   if (!ctx.sources) return null;
   const tabs = (list) => (list ?? []).map((t) => ({ tab: t.tab, state: t.state, rows: t.rows ?? null, findingCount: t.findingCount ?? 0,
-    findings: (t.findings ?? []).map((f) => ({ row: f.row ?? null, column: f.column ?? null, problem: f.problem })), used: t.used ?? null }));
+    findings: (t.findings ?? []).map((f) => ({ row: f.row ?? null, column: f.column ?? null, problem: f.problem })), used: t.used ?? null,
+    warningCount: t.warningCount ?? 0, warnings: (t.warnings ?? []).map((f) => ({ row: f.row ?? null, column: f.column ?? null, problem: f.problem })) }));
   const c = ctx.sources.copy ?? {};
   const h = ctx.sources.heartbeat ?? {};
   return {

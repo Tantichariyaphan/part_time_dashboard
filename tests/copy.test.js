@@ -99,6 +99,21 @@ test('COPY-5 meta structure: one row per tab, contract v1, readable last_read_at
   assert.ok(problems(r).includes('no_meta_row'));
 });
 
+test('COPY-5b a meta row for the meta tab itself is accepted and not used for freshness; a second one still blocks', async () => {
+  const metas = ['ログ', '送信ログ', 'AI質問追跡', '心拍'].map((t) => metaRow(t));
+  const stale = metaRow('meta', { last_read_at: '2026-10-01T00:00:00+07:00', status: 'error' }); // would stop the banner if it were used
+  let r = await adapterWith({ copy: copyRead({ meta: [...metas, stale] }) }).adapter.load();
+  assert.equal(r.sources.copy.state, 'CONNECTED');
+  const ctx = buildContext(r);
+  assert.equal(ctx.freshness.state, 'normal', 'the meta self-row does not drive any tab');
+  assert.equal(ctx.screen.meta.length, 4);
+  r = await adapterWith({ copy: copyRead({ meta: [...metas, metaRow('meta'), metaRow('meta')] }) }).adapter.load();
+  assert.equal(r.sources.copy.state, 'BLOCKED');
+  assert.ok(problems(r).includes('duplicate_meta_row') || r.sources.copy.metaTab.findings.some((f) => f.problem === 'duplicate_meta_row'));
+  r = await adapterWith({ copy: copyRead({ meta: [...metas, metaRow('予約')] }) }).adapter.load();
+  assert.equal(r.sources.copy.state, 'BLOCKED', 'other unknown names still block');
+});
+
 test('COPY-6 an unexpected tab in the copy blocks the whole copy (other tabs are never read)', async () => {
   const read = copyRead(); read.titles.push('予約');
   const r = await adapterWith({ copy: read }).adapter.load();
@@ -141,14 +156,14 @@ test('COPY-9 allowed groups only: LINK, other groups and group-id mismatches blo
   assert.equal(tabState(r, 'AI質問追跡'), 'blocked');
 });
 
-test('COPY-10 malformed rows block the tab: bad / duplicate 元の行番号, blank rows, rounded messageId, LINE ids, misplaced URLs', async () => {
+test('COPY-10 malformed rows block the tab: bad / duplicate 元の行番号, blank rows, blank messageId, LINE ids, misplaced URLs', async () => {
   const lineLike = `U${'a1'.repeat(16)}`;
   const cases = [
     [{ log: [log({ 元の行番号: 'x1' })] }, 'ログ', 'malformed_row_identity'],
     [{ log: [log({ 元の行番号: '' })] }, 'ログ', 'missing_row_identity'],
     [{ log: [log({ 元の行番号: '7' }), log({ 元の行番号: '7' })] }, 'ログ', 'duplicate_row_identity'],
     [{ sendLog: [send({ 元の行番号: '9' }), send({ 元の行番号: '9' })] }, '送信ログ', 'duplicate_row_identity'],
-    [{ log: [log({ messageId: '9.00000000000000E+17' })] }, 'ログ', 'rounded_identifier'],
+    [{ log: [log({ messageId: '' })] }, 'ログ', 'missing_value'],
     [{ log: [log({ 日時: 'yesterday' })] }, 'ログ', 'timestamp_format'],
     [{ log: [log({ 内容: `id ${lineLike}` })] }, 'ログ', 'line_id_in_cell'],
     [{ log: [log({ 発言者キー: 'https://example.invalid/k' })] }, 'ログ', 'url_in_cell'],
@@ -166,6 +181,30 @@ test('COPY-10 malformed rows block the tab: bad / duplicate 元の行番号, bla
   // a link typed by staff in a text message is content, not a violation
   const ok = await adapterWith({ copy: copyRead({ log: [log({ 内容: 'see https://example.invalid/menu' })] }) }).adapter.load();
   assert.equal(tabState(ok, 'ログ'), 'ok');
+});
+
+test('COPY-10b a messageId the sheet rounded (E / . / ,) is flagged, not blocking: shown under its row number, never merged, value never carried', async () => {
+  const bad = ['5.85123E+17', '585,123,456,789,012,345', '585123456789012345.0'];
+  const rows = [log({ 元の行番号: '101', messageId: bad[0] }), log({ 元の行番号: '102', messageId: bad[1] }), log({ 元の行番号: '103', messageId: bad[2] }),
+    log({ 元の行番号: '104', messageId: bad[0] }), log({ 元の行番号: '105' })]; // 101 and 104 show the same rounded value
+  const r = await adapterWith({ copy: copyRead({ log: rows }) }).adapter.load();
+  assert.equal(r.sources.copy.state, 'CONNECTED');
+  const t = r.sources.copy.tabs.find((x) => x.tab === 'ログ');
+  assert.equal(t.state, 'ok');
+  assert.equal(t.findingCount, 0);
+  assert.equal(t.warningCount, 4);
+  assert.deepEqual(t.warnings.map((w) => [w.row, w.column, w.problem]), [['101', 'messageId', 'rounded_identifier'], ['102', 'messageId', 'rounded_identifier'], ['103', 'messageId', 'rounded_identifier'], ['104', 'messageId', 'rounded_identifier']]);
+  const msgs = r.raw.messages.rows;
+  assert.equal(msgs.length, 5, 'every row counted; the two equal rounded values are NOT merged');
+  assert.deepEqual(msgs.filter((m) => m.id_damaged === 'yes').map((m) => m.message_id).sort(), ['ROW-101', 'ROW-102', 'ROW-103', 'ROW-104']);
+  assert.equal(msgs.find((m) => m.message_id.startsWith('90000000')).id_damaged, null);
+  const out = JSON.stringify(r) + JSON.stringify(vm.messages(buildContext(r), 'S', '2026-10-07'));
+  for (const v of bad) assert.equal(out.includes(v), false, 'the rounded value is never carried or shown');
+  const row = vm.messages(buildContext(r), 'S', '2026-10-07').items.find((m) => m.message_id === 'ROW-101');
+  assert.equal(row.idDamaged, true);
+  // a blank messageId still blocks the tab (nothing to key at all)
+  const blank = await adapterWith({ copy: copyRead({ log: [log({ messageId: '' })] }) }).adapter.load();
+  assert.equal(blank.sources.copy.tabs.find((x) => x.tab === 'ログ').state, 'blocked');
 });
 
 test('COPY-11 findings carry tab / 元の行番号 / column / problem only - never a cell value', () => {
@@ -237,16 +276,20 @@ test('COPY-15 rows sharing a messageId are one logical message (REQ §5-1); a ca
   assert.equal(r.sources.copy.collapsedMessageRows, 1);
 });
 
-test('COPY-16 the transform never fabricates: no candidate answers, no run links, no send kinds, unknown results stay unclassified', async () => {
+test('COPY-16 the transform never fabricates: answers are candidate only (never confirmed), no run links, no send kinds, unknown results stay unclassified', async () => {
   const r = await adapterWith({ copy: copyRead({ sendLog: [send({ 結果: 'QUEUED' })], log: [log({ 種別: 'video', 内容: '[video]' })] }) }).adapter.load();
   const m = r.raw.messages.rows[0];
   assert.equal(m.kind, 'other');
   assert.equal(m.text, null);
-  assert.equal(m.question_id, null); assert.equal(m.question_link, null); assert.equal(m.run_id, null);
+  // REQ §5-1: the same person in the same group after the question -> a possibly-related answer, never a confirmed one
+  assert.equal(m.question_link, 'candidate'); assert.equal(m.run_id, null);
   assert.equal(r.raw.sends.rows[0].kind, null);
   assert.equal(r.raw.sends.rows[0].result, null);
   assert.equal(r.sources.copy.unclassified.sendResult, 1);
-  for (const q of r.raw.questions.rows) { assert.equal(q.answers_json, null); assert.equal(q.run_id, null); assert.equal(q.send_id, null); }
+  for (const q of r.raw.questions.rows) {
+    assert.ok(JSON.parse(q.answers_json).every((a) => a.link === 'candidate'));
+    assert.notEqual(q.state, 'answered'); assert.equal(q.closed_reason, null); assert.equal(q.run_id, null); assert.equal(q.send_id, null);
+  }
   const ctx = buildContext(r);
   assert.equal(vm.failures(ctx).sendProblems.length, 0, 'an unclassified result is not shown as a failure');
   assert.equal(vm.failures(ctx).unclassifiedSends, 1);
@@ -390,7 +433,8 @@ test('COPY-22 questions: recorded rows are shown; the gap since 2026-10-05 23:36
   assert.equal(p.questionsIncomplete, true);
   assert.equal(p.responseRate.state, 'none');
   assert.equal(vm.allStores(ctx).stores[0].questionsIncomplete, true);
-  const ctx2 = await ctxOf({ copy: copyRead({ questions: [question({ state: 'waiting' })] }) });
+  // nobody matching the question wrote after it -> still waiting, no answers, nothing concluded
+  const ctx2 = await ctxOf({ copy: copyRead({ log: [log({ 発言者: 'Staff Two' })], questions: [question({ state: 'waiting' })] }) });
   const q = vm.questions(ctx2, 'S').items[0];
   assert.equal(q.state, 'waiting');
   assert.deepEqual(q.answers, []);
@@ -469,4 +513,149 @@ test('COPY-28 tests use synthetic data only: no test code refers to the client s
     const code = readFileSync(new URL(f, import.meta.url), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
     assert.equal(code.replace(/test\('COPY-28[\s\S]*$/, '').includes('sample data_'), false, f);
   }
+});
+
+// ------------------------------------------------------------------ possibly-related answers (REQ §5-1, TV22)
+const QT = '2026-10-05T12:13:00+07:00'; // question 送信時刻 used below
+const answersOf = (r, qid) => JSON.parse(r.raw.questions.rows.find((q) => q.question_id === qid).answers_json ?? '[]');
+const msgOf = (r, id) => r.raw.messages.rows.find((m) => m.message_id === id);
+
+test('COPY-33 candidate answer: same group + same sender + after 送信時刻 + not 取消 -> listed as candidate (no time limit)', async () => {
+  const q = question({ 送信時刻: QT, group: 'MEAT', who: 'Staff One' });
+  const a1 = log({ 日時: '2026-10-05T12:20:00+07:00', 発言者: 'Staff One', 内容: 'first' });
+  const a2 = log({ 日時: '2026-10-07T09:00:00+07:00', 発言者: ' Staff One ', 内容: 'two days later' }); // crosses days: still a candidate
+  const img = log({ 日時: '2026-10-05T12:30:00+07:00', 発言者: 'Staff One', 種別: 'image', 内容: '[image]' });
+  const r = await adapterWith({ copy: copyRead({ log: [a2, a1, img], questions: [q] }) }).adapter.load();
+  const answers = answersOf(r, q.question_id);
+  assert.equal(answers.length, 3);
+  assert.ok(answers.every((a) => a.link === 'candidate'));
+  assert.deepEqual(answers.map((a) => a.message_id).sort(), [a1.messageId, a2.messageId, img.messageId].sort());
+  const row = r.raw.questions.rows[0];
+  assert.equal(row.state, 'candidate', 'waiting + a possibly-related answer -> candidate (REQ §5-3)');
+  for (const id of [a1.messageId, a2.messageId, img.messageId]) {
+    assert.equal(msgOf(r, id).question_id, q.question_id);
+    assert.equal(msgOf(r, id).question_link, 'candidate');
+  }
+  assert.deepEqual(r.sources.copy.answerLinks, { questionsWithCandidates: 1, candidateLinks: 3, messagesWithSeveralQuestions: 0 });
+  // the screen: sorted by time, flagged as unconfirmed, state candidate (yellow), no wait time
+  const ctx = buildContext(r);
+  const item = vm.questions(ctx, 'S').items[0];
+  assert.equal(item.state, 'candidate');
+  assert.deepEqual(item.answers.map((a) => a.text), ['first', null, 'two days later']);
+  assert.ok(item.answers.every((a) => a.link === 'candidate'));
+  assert.equal(vm.questions(ctx, 'S').answerEvidence, 'CANDIDATE');
+  assert.equal(vm.questions(ctx, 'S').counts.waiting, 1, 'candidate is still counted under รอคำตอบ');
+  assert.equal(vm.allStores(ctx).stores[0].waitingQuestions, 1);
+});
+
+test('COPY-34 not a candidate: other group, other sender, before or at 送信時刻', async () => {
+  const q = question({ 送信時刻: QT, group: 'MEAT', who: 'Staff One' });
+  const rows = [
+    log({ 群: 'IN', 日時: '2026-10-05T13:00:00+07:00', 発言者: 'Staff One' }), // other group
+    log({ 日時: '2026-10-05T13:00:00+07:00', 発言者: 'Staff Two' }), // other sender
+    log({ 日時: '2026-10-05T13:00:00+07:00', 発言者: 'staff one' }), // no name folding
+    log({ 日時: '2026-10-05T12:12:59+07:00', 発言者: 'Staff One' }), // before the question
+    log({ 日時: QT, 発言者: 'Staff One' }), // same instant is not "after"
+  ];
+  const r = await adapterWith({ copy: copyRead({ log: rows, questions: [q] }) }).adapter.load();
+  assert.deepEqual(answersOf(r, q.question_id), []);
+  assert.equal(r.raw.questions.rows[0].answers_json, null);
+  assert.equal(r.raw.questions.rows[0].state, 'waiting');
+  for (const m of r.raw.messages.rows) { assert.equal(m.question_id, null); assert.equal(m.question_link, null); }
+  assert.equal(r.sources.copy.answerLinks.candidateLinks, 0);
+});
+
+test('COPY-35 a cancelled (取消) message is never a candidate answer', async () => {
+  const q = question({ 送信時刻: QT });
+  const c = log({ 日時: '2026-10-05T12:20:00+07:00', 取消: '取消' });
+  const ok = log({ 日時: '2026-10-05T12:25:00+07:00' });
+  const r = await adapterWith({ copy: copyRead({ log: [c, ok], questions: [q] }) }).adapter.load();
+  assert.deepEqual(answersOf(r, q.question_id).map((a) => a.message_id), [ok.messageId]);
+  assert.equal(msgOf(r, c.messageId).question_id, null);
+  // only a cancelled message -> nothing to show, still waiting
+  const r2 = await adapterWith({ copy: copyRead({ log: [log({ 日時: '2026-10-05T12:20:00+07:00', 取消: '取消' })], questions: [question({ 送信時刻: QT })] }) }).adapter.load();
+  assert.equal(r2.raw.questions.rows[0].answers_json, null);
+  assert.equal(r2.raw.questions.rows[0].state, 'waiting');
+});
+
+test('COPY-36 missing evidence -> no candidates: blank who, unreadable 送信時刻 (tab blocked), ログ blocked; unknown state kept', async () => {
+  const later = () => log({ 日時: '2026-10-05T13:00:00+07:00' });
+  let r = await adapterWith({ copy: copyRead({ log: [later()], questions: [question({ who: '' })] }) }).adapter.load();
+  assert.equal(r.raw.questions.rows[0].answers_json, null);
+  assert.equal(r.raw.questions.rows[0].state, 'waiting');
+  r = await adapterWith({ copy: copyRead({ log: [later()], questions: [question({ 送信時刻: 'yesterday' })] }) }).adapter.load();
+  assert.equal(r.raw.questions.rows.length, 0, 'an unreadable 送信時刻 blocks the tab (fail closed)');
+  for (const m of r.raw.messages.rows) assert.equal(m.question_id, null);
+  r = await adapterWith({ copy: copyRead({ log: [later(), log({ 取消: 'x' })], questions: [question()] }) }).adapter.load();
+  assert.equal(r.raw.messages.rows.length, 0, 'ログ blocked');
+  assert.equal(r.raw.questions.rows[0].answers_json, null);
+  assert.equal(r.raw.questions.rows[0].state, 'waiting');
+  // a state other than waiting is unknown: answers may be listed, but the state is not upgraded to anything
+  r = await adapterWith({ copy: copyRead({ log: [later()], questions: [question({ state: 'answered' })] }) }).adapter.load();
+  assert.equal(r.raw.questions.rows[0].state, null);
+  assert.ok(JSON.parse(r.raw.questions.rows[0].answers_json).every((a) => a.link === 'candidate'));
+});
+
+test('COPY-37 a candidate never becomes confirmed: response rate / time to answer not concluded, evidence CANDIDATE, message link candidate', async () => {
+  const q = question({ 送信時刻: QT });
+  const a = log({ 日時: '2026-10-05T12:20:00+07:00' });
+  const r = await adapterWith({ copy: copyRead({ log: [a], questions: [q] }) }).adapter.load();
+  const all = [...r.raw.questions.rows.flatMap((x) => JSON.parse(x.answers_json ?? '[]').map((y) => y.link)), ...r.raw.messages.rows.map((m) => m.question_link)];
+  assert.equal(all.includes('confirmed'), false);
+  assert.ok(!r.raw.questions.rows.some((x) => ['acked', 'answered', 'closed'].includes(x.state)));
+  const ctx = buildContext(r);
+  const m = vm.periods(ctx, '7').stores[0].metrics;
+  assert.equal(m.responseRate.state, 'not_concluded', 'candidates are not counted in the response rate');
+  assert.equal(m.responseRate.candidateCount, 1);
+  assert.equal(m.timeToAnswer.state, 'not_concluded');
+  assert.equal(vm.allStores(ctx).stores[0].capability.answers, 'CANDIDATE');
+  const msg = vm.messages(ctx, 'S', '2026-10-05').items.find((x) => x.message_id === a.messageId);
+  assert.equal(msg.question.link, 'candidate');
+  assert.equal(msg.question.found, true);
+});
+
+test('COPY-38 two open questions to the same person: the message is listed under both, its own question link stays blank', async () => {
+  const q1 = question({ 送信時刻: '2026-10-05T12:13:00+07:00' });
+  const q2 = question({ 送信時刻: '2026-10-05T12:40:00+07:00' });
+  const between = log({ 日時: '2026-10-05T12:20:00+07:00' }); // after q1 only
+  const after = log({ 日時: '2026-10-05T12:50:00+07:00' }); // after both
+  const r = await adapterWith({ copy: copyRead({ log: [between, after], questions: [q1, q2] }) }).adapter.load();
+  assert.deepEqual(answersOf(r, q1.question_id).map((x) => x.message_id).sort(), [between.messageId, after.messageId].sort());
+  assert.deepEqual(answersOf(r, q2.question_id).map((x) => x.message_id), [after.messageId]);
+  assert.equal(msgOf(r, between.messageId).question_id, q1.question_id);
+  assert.equal(msgOf(r, after.messageId).question_id, null, 'which question it answers is unknown');
+  assert.equal(msgOf(r, after.messageId).question_link, null);
+  assert.equal(r.sources.copy.answerLinks.messagesWithSeveralQuestions, 1);
+});
+
+test('COPY-39 a row with a damaged messageId can be a candidate (by ROW-<n>), never confirmed', async () => {
+  const d = log({ 元の行番号: '4242', 日時: '2026-10-05T12:20:00+07:00', messageId: '1.23457E+17' });
+  const r = await adapterWith({ copy: copyRead({ log: [d], questions: [question({ 送信時刻: QT })] }) }).adapter.load();
+  const answers = JSON.parse(r.raw.questions.rows[0].answers_json);
+  assert.deepEqual(answers.map((x) => [x.message_id, x.link]), [['ROW-4242', 'candidate']]);
+  assert.equal(JSON.stringify(r.raw).includes('1.23457E+17'), false, 'the rounded value is never used as an id');
+});
+
+test('COPY-40 candidate linking is a pure rebuild: same copy -> identical output', () => {
+  const read = copyRead({ log: [log({ 日時: '2026-10-05T12:20:00+07:00' })], questions: [question({ 送信時刻: QT })] });
+  const run = () => transformCopy(validateCopy(structuredClone(read), { timezone: null }), { store: { store: 'S', open_time: '00:00', close_time: '23:59' }, timezone: null, nowMs: NOW });
+  assert.deepEqual(run().raw.questions, run().raw.questions);
+  assert.deepEqual(run().raw.messages, run().raw.messages);
+});
+
+test('COPY-41 ① badge: a connected copy store is not shown as CONFIRMED while run status is undetermined (Q-49)', async () => {
+  const ctx = await ctxOf({});
+  const s = vm.allStores(ctx).stores[0];
+  assert.equal(s.connection, 'connected');
+  assert.equal(s.patrol.unconfirmedStatus, true);
+  assert.notEqual(s.capability.evidence, 'CONFIRMED');
+  assert.equal(s.capability.evidence, 'UNKNOWN');
+  assert.equal(s.capability.evidenceReason, 'run_status_unconfirmed');
+});
+
+test('COPY-42 question-gap wording: "may be incomplete", never "not recorded" or "fixed"', async () => {
+  const { S } = await import('../public/app/strings.ja.js');
+  const t = S.questionsIncomplete('10/05 23:36');
+  assert.match(t, /10\/05 23:36 以降の質問記録は不完全な可能性があります/);
+  for (const bad of ['記録されていません', '修正中', '修正済', '復旧']) assert.equal(t.includes(bad), false, bad);
 });

@@ -120,7 +120,7 @@ One spreadsheet for Bangkok, continuously written by the GAS that receives/sends
 
 ### 2.3 `AI質問追跡` — one row = one question from a patrol run that **was actually sent**
 
-`元の行番号` (copy) / `question_id` / `送信時刻` / `group` / `who` / `question_th` / `source_candidate_sha256` / `slot` (which run) / `state` (stays at default `waiting`; updated in place by the copy if it changes). **No new rows since 10/6** because polling-loop questions are not yet written here (client fixing; Q-52).
+`元の行番号` (copy) / `question_id` / `送信時刻` / `group` / `who` / `question_th` / `source_candidate_sha256` / `slot` (which run) / `state` (stays at default `waiting`; updated in place by the copy if it changes). Client 10/7: no new rows since 10/6 because polling-loop questions were not yet written here (client fixing). Live copy 10/13: rows dated after 10/5 exist again, but whether the records after 10/5 23:36 are complete is not confirmed — the screen says they **may be incomplete** (Q-52).
 
 ### 2.4 `心拍` — one row = one GAS patrol check
 
@@ -287,7 +287,7 @@ Rules (REQ):
 
 | Column | Meaning | Provenance |
 |---|---|---|
-| `store`, `question_id`, `run_id`, `send_id` | store / unique question key / run that sent it (blank for light-check) / send-log row | `question_id` ← `AI質問追跡.question_id` (DERIVED). `run_id` from `slot` and `send_id` linking: UNCONFIRMED (Q-21). **No new `AI質問追跡` rows since 10/6** (polling-loop questions; client fixing — Q-52) |
+| `store`, `question_id`, `run_id`, `send_id` | store / unique question key / run that sent it (blank for light-check) / send-log row | `question_id` ← `AI質問追跡.question_id` (DERIVED). `run_id` from `slot` and `send_id` linking: UNCONFIRMED (Q-21). `AI質問追跡` records after 10/5 23:36 may be incomplete (client 10/7: no new rows since 10/6; live copy 10/13: rows after 10/5 exist again; completeness unconfirmed — Q-52) |
 | `sent_at`, `group`, `who` | send time / group / recipient display name | ← `送信時刻`, `group`, `who` (DERIVED) |
 | `question_text` | text as sent (local language kept) | ← `question_th` (DERIVED) |
 | `state` | §7.1 | `waiting`/`candidate` computable now; others need evidence |
@@ -352,6 +352,7 @@ Availability: **ready** (client 10/7); view access is granted once PIATEC's read
 - Rows with `再送` ("re-sent by LINE") and rows sharing the same `messageId` collapse into **one** logical message.
 - In the copy each source row is one copy row (`元の行番号`). Sample 10/5: `再送` rows carry their **own** `messageId`, so "same `messageId`" alone does not tie a resend to its original → how resends are tied: **UNCONFIRMED (Q-17)**.
 - The rule for which duplicate row's `at`/`text` is kept is **UNCONFIRMED / ไม่ยืนยัน (Q-17)**.
+- Live copy 2026-10-13: 11 of 7,461 `messageId`s are stored as numbers (scientific notation, 18 → 5–6 digits). PIATEC decision: those rows are shown under `ROW-<元の行番号>`, flagged "ID破損", never merged with another row; no ID is reconstructed. Client asked to write `messageId` as text and whether the originals can be recovered.
 
 ### 6.2 Cancel
 

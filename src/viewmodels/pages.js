@@ -125,7 +125,11 @@ export function allStores(ctx) {
   const dataRuns = real(ctx.screen.runs, isDummyRun);
   const out = activeStores(ctx).map((store) => {
     const conn = connectionOf(ctx, store);
-    const cap = storeCapability(store, conn, questionsOf(ctx, store));
+    const raw = storeCapability(store, conn, questionsOf(ctx, store));
+    // ① header badge: "connected" is not "confirmed" while run status cannot be read (Q-49) - the badge must not suggest
+    // that patrol / daily results are verified. Shown as UNKNOWN with the reason; connection itself is reported by `connection`.
+    const cap = conn === 'connected' && runStatusUnconfirmed(ctx) && raw.evidence === 'CONFIRMED'
+      ? { ...raw, evidence: 'UNKNOWN', evidenceReason: 'run_status_unconfirmed' } : raw;
     const base = { store: store.store, display_name: store.display_name, connection: conn, capability: cap };
     if (conn !== 'connected') return base;
 

@@ -24,6 +24,7 @@ import { createCopyAdapter } from '../src/adapters/copy/copyAdapter.js';
 import { COPY_TAB, FORBIDDEN_FIELDS, HEARTBEAT_TAB } from '../src/contract/copyContract.js';
 import { loadSourceConfig, SourceConfigError } from './source/config.js';
 import { createSheetsReader } from './source/sheetsReader.js';
+import { createServiceAccountTokenSource } from './source/serviceAccountToken.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
@@ -37,15 +38,16 @@ const SECURITY_HEADERS = {
 
 /**
  * @param {object} env
- * @param {{getAccessToken?: () => Promise<string>}} reader  token source of the dedicated READER account (Q-48). Not
- *   available yet: no environment variable can supply it, so `copy` starts with both readers NOT_CONNECTED.
+ * @param {{getAccessToken?: () => Promise<string>}} reader  token source of the dedicated READER account. Normally built from
+ *   the service-account key in NIKUSHO_READER_KEY_FILE / _JSON; without a key both readers are NOT_CONNECTED (Q-48).
  */
-export function chooseLiveAdapter(env = process.env, { getAccessToken } = {}) {
+export function chooseLiveAdapter(env = process.env, { getAccessToken: injected } = {}) {
   const which = env.NIKUSHO_LIVE_ADAPTER ?? 'devmock';
   if (which === 'none') return createNoneAdapter();
   if (which === 'devmock') return createDevMockAdapter({ scenario: env.NIKUSHO_DEV_SCENARIO ?? 'full' });
   if (which === 'copy') {
     const cfg = loadSourceConfig(env);
+    const getAccessToken = injected ?? (cfg.readerKey ? createServiceAccountTokenSource(cfg.readerKey) : undefined);
     return createCopyAdapter({
       config: cfg.adapter,
       // Two separate readers, one per client file; the same reader account; ids only from server configuration.

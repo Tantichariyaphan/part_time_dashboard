@@ -1,0 +1,24 @@
+{
+  "_note": "Bangkok configuration for NIKUSHO_LIVE_ADAPTER=copy (NIKUSHO_STORES_FILE). CONFIRMED by the client 2026-10-07: slot history, daily 00:35, production_host snowmaru. PROVISIONAL until the client confirms (listed in _provisional): values taken from REQ examples / samples.",
+  "_provisional": ["stores.store", "stores.display_name", "stores.business_day_start", "stores.slot_deadline_min", "stores.daily_deadline_min", "stores.text_patrol", "schedules daily valid_from"],
+  "stores": [
+    {
+      "store": "NIKUSHO_BANGNA",
+      "display_name": "NIKUSHO บางนา",
+      "timezone": "Asia/Bangkok",
+      "business_day_start": "05:00",
+      "slot_times": "12:00,17:00,22:00",
+      "slot_deadline_min": 90,
+      "daily_deadline_min": 60,
+      "daily_time": "00:35",
+      "text_patrol": "10:00-24:00",
+      "production_host": "snowmaru",
+      "active": "yes"
+    }
+  ],
+  "schedules": [
+    { "store": "NIKUSHO_BANGNA", "kind": "slot", "times": "12:00,22:00", "valid_from": "2026-09-13", "valid_to": "2026-10-01" },
+    { "store": "NIKUSHO_BANGNA", "kind": "slot", "times": "12:00,17:00,22:00", "valid_from": "2026-10-02", "valid_to": null },
+    { "store": "NIKUSHO_BANGNA", "kind": "daily", "times": "00:35", "valid_from": "2026-09-13", "valid_to": null }
+  ]
+}
