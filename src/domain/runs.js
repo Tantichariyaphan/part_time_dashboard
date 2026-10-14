@@ -1,13 +1,14 @@
 // Run (patrol / daily) status logic. REQ §5-3, §6.
 //  - every scheduled run must have a row; a missing row after (scheduled + deadline) = "no_row" (dark red, never dropped)
-//  - before the deadline = "not_due" (grey)
+//  - before the scheduled time = "not_due" (時刻前); after the scheduled time but before the deadline = "awaiting"
+//    (結果待ち: time has passed, no result yet) - client 2026-10-14: a run past its time must not be shown as 時刻前
 //  - a row still `running` past its deadline becomes `unknown` (TV25)
 //  - a store/kind that is out of scope (blank `stores` column) is not counted as missing
 import { RUN_STATUS } from '../contract/enums.js';
 import { businessDayOf, parseMs } from './time.js';
 import { deadlineMin, expectedRuns, scheduleConsistency, scopeOf } from './schedules.js';
 
-/** Display status keys: the 7 REQ statuses plus two derived: `not_due`, `no_row`. */
+/** Display status keys: the 7 REQ statuses plus derived: `not_due`, `awaiting`, `no_row`, `unconfirmed`. */
 export function effectiveRunStatus(row, store, now) {
   if (!RUN_STATUS.includes(row.status)) return { status: 'unknown', derived: 'unrecognized' };
   if (row.status === 'running') {
@@ -18,10 +19,13 @@ export function effectiveRunStatus(row, store, now) {
   return { status: row.status, derived: null };
 }
 
+/** A scheduled run with no result yet and its deadline not reached: before its time `not_due` (時刻前), after it `awaiting` (結果待ち). */
+export const pendingStatus = (scheduledMs, now) => (now >= scheduledMs ? 'awaiting' : 'not_due');
+
 /**
  * All runs of one store for one business day, newest first.
  * `statusUnconfirmed` (source cannot prove run status yet, Q-49): every scheduled run is listed from `schedules`, but
- * none is judged - before its deadline it is `not_due`, after it `unconfirmed` (derived display key, not a REQ status,
+ * none is judged - before its time it is `not_due`, from its time to its deadline `awaiting`, after it `unconfirmed` (derived display key, not a REQ status,
  * never counted as success, failure or missing). Run rows are not read at all in that mode.
  * @returns {{items: object[], unconfirmedSchedule: {slot:boolean, daily:boolean}, unconfirmedStatus: boolean}}
  */
@@ -36,7 +40,7 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
       if (unconfirmedSchedule[kind]) continue; // same rule as below: do not pick a schedule on our own
       for (const e of expectedRuns(store, schedules, kind, day)) {
         const due = now >= e.at + (deadlineMin(store, kind) ?? 0) * 60000;
-        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'unconfirmed' : 'not_due', derived: null });
+        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'unconfirmed' : pendingStatus(e.at, now), derived: null });
       }
     }
     items.sort((a, b) => b.scheduledMs - a.scheduledMs);
@@ -58,7 +62,7 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
       } else {
         const dl = deadlineMin(store, kind);
         const due = now >= e.at + (dl ?? 0) * 60000;
-        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'no_row' : 'not_due', derived: null });
+        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'no_row' : pendingStatus(e.at, now), derived: null });
       }
     }
   }
@@ -75,7 +79,7 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
 }
 
 /** Statuses that count in the success-rate denominator: scheduled runs, excluding in-progress / not yet due. */
-export const IN_PROGRESS = new Set(['running', 'not_due']);
+export const IN_PROGRESS = new Set(['running', 'not_due', 'awaiting']);
 /** Listed but not judged (Q-49): excluded from every rate and every failure count. */
 export const NOT_JUDGED = new Set(['unconfirmed']);
 export const SUCCESS = new Set(['ok', 'silent_ok', 'late']);

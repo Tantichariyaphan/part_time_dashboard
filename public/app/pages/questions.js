@@ -26,6 +26,8 @@ function Answer(a, store) {
 
 /** Where the question came from (run_id) and whether LINE accepted its send (send_id). Registry keys only. */
 function Provenance(q, store) {
+  // The internal question id (e.g. R021-confirm-…) is never printed on the normal screen (client 2026-10-14); it is used only
+  // as a link target (anchor) and in request parameters.
   const run = q.run;
   const send = q.send;
   return h('div', { class: 'prov small' },
@@ -36,8 +38,7 @@ function Provenance(q, store) {
     send && (send.found
       ? h('span', { class: 'runchip' }, `${S.detail.sendOfQuestion} ${hhmm(send.sent_at) ?? ''} → ${send.target_label ?? ''}`,
         StatusBadge(sendTone(send.result), S.sendResult[send.result] ?? S.unknown, { compact: true }))
-      : h('span', { class: 'muted' }, S.detail.sendNotFound)),
-    h('span', { class: 'muted' }, q.question_id));
+      : h('span', { class: 'muted' }, S.detail.sendNotFound)));
 }
 
 function Question(q, store) {
@@ -64,6 +65,7 @@ export function view(env, ctx) {
     d.answerEvidence === 'CANDIDATE' && AlertCard(null, S.questions.candidateNote, 'warn'),
     d.incompleteFrom && AlertCard(null, S.questionsIncomplete(mdhm(d.incompleteFrom)), 'warn'), // Q-52: not "0 questions"
     Chips([['all', `${S.questions.filters.all} ${c.all}`], ['waiting', `${S.questions.filters.waiting} ${c.waiting}`],
+      ['candidate', `${S.questions.filters.candidate} ${c.candidate ?? 0}`],
       ['answered', `${S.questions.filters.answered} ${c.answered}`], ['closed', `${S.questions.filters.closed} ${c.closed}`]],
     filter.key, (k) => { filter.key = k; ctx.rerender(); }),
     items.length ? items.map((q) => Question(q, d.store)) : EmptyState(S.zero));

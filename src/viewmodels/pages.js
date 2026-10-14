@@ -147,8 +147,9 @@ export function allStores(ctx) {
     const { start, end } = businessDayWindow(day, store);
     const todays = real(ctx.screen.messages, isDummyMessage).filter((m) => m.store === store.store)
       .filter((m) => { const t = parseMs(m.at); return t >= start && t < end; }).map(messageRow);
-    const waiting = real(ctx.screen.questions, isDummyQuestion)
-      .filter((q) => q.store === store.store && ['waiting', 'candidate'].includes(q.state)).length;
+    const openQs = real(ctx.screen.questions, isDummyQuestion).filter((q) => q.store === store.store);
+    const waiting = openQs.filter((q) => q.state === 'waiting').length; // 未回答
+    const candidate = openQs.filter((q) => q.state === 'candidate').length; // 回答未確認 - never added to 未回答 (client 2026-10-14)
 
     return {
       ...base,
@@ -156,7 +157,8 @@ export function allStores(ctx) {
       patrol: scope.slot ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.slot, unconfirmedStatus, items: unconfirmedSchedule.slot ? [] : ofKind('slot') } : { scope: 'out_of_scope' },
       daily: scope.daily ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.daily, unconfirmedStatus, items: unconfirmedSchedule.daily ? [] : ofKind('daily') } : { scope: 'out_of_scope' },
       questionsToday: asked.length ? { state: 'value', value: asked.reduce((s, v) => s + v, 0) } : { state: 'unpulled' },
-      waitingQuestions: waiting, // all days, waiting + candidate (REQ §6-①)
+      waitingQuestions: waiting, // all days, no possibly related answer (未回答)
+      candidateQuestions: candidate, // all days, possibly related answer not confirmed (回答未確認)
       questionsIncomplete: questionsIncompleteNow(ctx), // question records known to be incomplete (Q-52): the count is a lower bound
       messagesToday: countWithCoverage(todays.length, cov),
       botRepliesToday: countWithCoverage(todays.filter((m) => m.flags.replied).length, cov),
@@ -250,7 +252,7 @@ export function questions(ctx, storeId) {
     store: store.store, display_name: store.display_name, connection: 'connected',
     answerEvidence: cap.answers, // CONFIRMED | CANDIDATE | UNKNOWN
     incompleteFrom: questionsIncompleteNow(ctx) ? formatIso(questionsIncompleteFromMs(ctx)) : null, // Q-52
-    counts: { all: qs.length, waiting: count('waiting'), answered: count('answered'), closed: count('closed') },
+    counts: { all: qs.length, waiting: count('waiting'), candidate: count('candidate'), answered: count('answered'), closed: count('closed') },
     items: qs,
   };
 }

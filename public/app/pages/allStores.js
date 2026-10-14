@@ -39,7 +39,7 @@ export function view(env) {
           (s.patrol.unconfirmedStatus || s.daily.unconfirmedStatus) && h('div', { class: 'small muted' }, S.runStatusUnconfirmed),
           Metrics(
             MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled, null, { href: href.today(s.store) }),
-            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, s.questionsIncomplete ? S.questionsIncompleteShort : null, { href: href.questions(s.store) }),
+            MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, [S.all.candidate(s.candidateQuestions ?? 0), s.questionsIncomplete ? S.questionsIncompleteShort : null].filter(Boolean).join('　'), { href: href.questions(s.store) }),
             MetricCard(S.all.messages, countText(s.messagesToday), `${S.all.botReplies} ${countText(s.botRepliesToday)}`, { href: href.messages(s.store) }),
           ),
           h('a', { class: 'rowlink', href: href.machines() }, KeyValues([

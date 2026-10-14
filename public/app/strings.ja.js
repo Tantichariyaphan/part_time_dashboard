@@ -72,7 +72,7 @@ export const S = {
   evidence: { CONFIRMED: '確認済み', CANDIDATE: '候補', UNKNOWN: '不明', NOT_CONNECTED: '未接続' },
   kind: { slot: '巡回', daily: '日次' },
   run: {
-    ok: '完了（質問あり）', silent_ok: '完了（質問なし）', late: '完了（遅延）', running: '実行中', not_due: '時刻前',
+    ok: '完了（質問あり）', silent_ok: '完了（質問なし）', late: '完了（遅延）', running: '実行中', not_due: '時刻前', awaiting: '結果待ち（時刻経過）',
     unknown: '結果確認不可', blocked: '停止', missing: '未実行', no_row: '未確認（記録なし）',
     unconfirmed: '状態未判定',
   },
@@ -83,10 +83,10 @@ export const S = {
   runDerived: { unrecognized: '未知の状態値', deadline_passed_running: '実行中のまま期限超過' },
   legend: [
     ['tone-ok', '完了（質問あり）'], ['tone-silent', '完了（質問なし）'], ['tone-late', '完了（遅延）'],
-    ['tone-wait', '実行中・時刻前'], ['tone-unknown', '結果確認不可'], ['tone-blocked', '停止'], ['tone-missing', '未実行・未確認'],
+    ['tone-wait', '実行中・時刻前'], ['tone-await', '結果待ち（時刻経過）'], ['tone-unknown', '結果確認不可'], ['tone-blocked', '停止'], ['tone-missing', '未実行・未確認'], ['tone-neutral', '状態未判定'],
   ],
   qstate: {
-    waiting: '回答待ち', candidate: '関連の可能性のある回答あり（未確認）', acked: '回答あり（未完了）', answered: '回答完了',
+    waiting: '未回答', candidate: '関連の可能性のある回答あり（未確認）', acked: '回答あり（未完了）', answered: '回答完了',
     closed: 'クローズ', unknown: '未確認',
   },
   closedReason: { answered: '回答済み', owner: 'オーナー判断', no_reply: '回答なしで終了' },
@@ -119,7 +119,7 @@ export const S = {
   cancelNote: '',
   // pages
   all: {
-    patrol: '巡回', daily: '日次', questions: '質問', waiting: '回答待ち', messages: '本日のメッセージ', botReplies: 'Bot返信',
+    patrol: '巡回', daily: '日次', questions: '質問', waiting: '未回答', candidate: (n) => `回答未確認 ${n}件`, messages: '本日のメッセージ', botReplies: 'Bot返信',
     machine: '稼働機', lightCheck: '簡易チェック', unit: '件',
   },
   today: {
@@ -128,7 +128,7 @@ export const S = {
   },
   messages: { total: 'メッセージ数', bot: 'Bot返信', group: 'グループ', replied: 'Bot返信済み', problem: '失敗・未確認', after: (m) => `${m}分後`, minutesWord: '分' },
   questions: {
-    filters: { all: 'すべて', waiting: '回答待ち', answered: '回答あり', closed: 'クローズ' },
+    filters: { all: 'すべて', waiting: '未回答', candidate: '回答未確認', answered: '回答あり', closed: 'クローズ' },
     wait: (h) => `${h}時間 待ち`, candidateNote: '現在の記録では回答の確定はできません（候補止まり）',
   },
   failures: { missing: '欠落', blocked: '停止', late: '遅延', unknown: '未確認', days: (d) => `直近${d}日`, sends: '送信の失敗・結果未確認', none: '該当はありません', notConnected: '未接続の店舗（対象外）',

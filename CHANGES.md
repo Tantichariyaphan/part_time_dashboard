@@ -3,6 +3,27 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-14 — screen fixes requested by the client (Maru-san, 10/14)
+
+- **Runs past their time:** a scheduled run whose time has passed is no longer shown as 「時刻前」. Before its time: 時刻前
+  (`not_due`); from its time to its deadline: **「結果待ち（時刻経過）」 (`awaiting`, new)**; after the deadline: 未確認（記録なし） /
+  状態未判定 as before. `awaiting` is in-progress (excluded from every rate, like `not_due`; never a success or a failure). On ① the
+  run chips are dots, so `awaiting` has its own ring-shaped dot (`tone-await`) and its own legend entry; 状態未判定 was added to the
+  legend so the two are told apart. Boundaries: at the scheduled time exactly → `awaiting`; at the deadline exactly → after-deadline.
+  No run-status rule was added: what a run's result is stays the client's decision (Q-49).
+- **未回答 vs 回答未確認:** ① no longer adds questions with a possibly related answer (`candidate`) to the unanswered count. ① card
+  「未回答 N件」 with the sub-line 「回答未確認 M件」; ④ filters すべて / 未回答 / 回答未確認 / 回答あり / クローズ; the state label
+  `waiting` is now 「未回答」. View model: `waitingQuestions` = waiting only, new `candidateQuestions`; ④ `counts.candidate`.
+- **Internal question id hidden:** ④ no longer prints the question id (e.g. `R021-confirm-…`) on the normal screen; it is used only
+  as an anchor / link target. Message / run / send ids stay inside the closed 「詳細」 panels only.
+- Tests: RUN-AWAIT ×4 (`tests/runs.test.js`: before/at/after the time and the deadline, 1 ms boundaries, daily run across midnight,
+  never counted), `tests/screen-rules.test.js` (SCREEN-1…4; SCREEN-4 = every question state at once, no double counting, response
+  rate from confirmed answers only), COPY-33 updated to the new counting rule. 219 → 227, all on synthetic data.
+- Checked outside `npm test` (synthetic data): headless UI review of all 7 pages at 375 / 1280 px, no findings; rendered-DOM search
+  for a synthetic id `R021-confirm-SYNTHMARK-*` on all 7 pages with collapsible panels opened: visible text before the fix on ④,
+  none after; it remains only as the `id` attribute of the ④ question card (anchor) and in the `/api/live/questions` JSON.
+- **Not verified on live data yet:** the live ① / ④ counts after the change and the ② 「結果待ち」 state during a result window.
+
 ## Unreleased — not committed (2026-10-13) — production = live data only
 
 - **Fixed (root cause of mock data on vercel.app):** `api/server.js` wired the dev mock as the live entry. It now forces the production

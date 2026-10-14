@@ -544,8 +544,11 @@ test('COPY-33 candidate answer: same group + same sender + after 送信時刻 + 
   assert.deepEqual(item.answers.map((a) => a.text), ['first', null, 'two days later']);
   assert.ok(item.answers.every((a) => a.link === 'candidate'));
   assert.equal(vm.questions(ctx, 'S').answerEvidence, 'CANDIDATE');
-  assert.equal(vm.questions(ctx, 'S').counts.waiting, 1, 'candidate is still counted under รอคำตอบ');
-  assert.equal(vm.allStores(ctx).stores[0].waitingQuestions, 1);
+  // client 2026-10-14: 回答未確認 (candidate) is counted on its own, never under 未回答 (waiting)
+  assert.equal(vm.questions(ctx, 'S').counts.waiting, 0, 'a candidate is not counted as unanswered');
+  assert.equal(vm.questions(ctx, 'S').counts.candidate, 1, 'a candidate is counted as unconfirmed');
+  assert.equal(vm.allStores(ctx).stores[0].waitingQuestions, 0);
+  assert.equal(vm.allStores(ctx).stores[0].candidateQuestions, 1);
 });
 
 test('COPY-34 not a candidate: other group, other sender, before or at 送信時刻', async () => {

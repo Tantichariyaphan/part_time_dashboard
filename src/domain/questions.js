@@ -37,10 +37,15 @@ export function readAnswers(q) {
 
 export const stateKey = (q) => (QUESTION_STATE.includes(q.state) ? q.state : 'unknown');
 
-/** Q-27 (UNCONFIRMED) safe default: รอคำตอบ = waiting + candidate; มีคำตอบ = acked + answered; ปิดเรื่อง = closed. */
+/**
+ * Filter groups. Client 2026-10-14: unanswered and unconfirmed are never counted together.
+ * 未回答 = waiting (no possibly related answer found); 回答未確認 = candidate (a possibly related answer exists, never confirmed);
+ * 回答あり = acked + answered; クローズ = closed.
+ */
 export function filterGroup(q) {
   const s = stateKey(q);
-  if (s === 'waiting' || s === 'candidate') return 'waiting';
+  if (s === 'waiting') return 'waiting';
+  if (s === 'candidate') return 'candidate';
   if (s === 'acked' || s === 'answered') return 'answered';
   if (s === 'closed') return 'closed';
   return 'other';

@@ -44,6 +44,11 @@ Live screens are captured on PIATEC's development PC with read-only access. The 
 
 Real-time results replace this table in the report of 10/15 (outage) and 10/16 (3 days of timing).
 
+**Live timing sample (2026-10-13 17:33–17:52, read-only, 20 reads):** the copy was refreshed every 5 minutes (3 intervals, all
+5 min); the oldest copy data seen was 4.9 minutes old; the dashboard always read the same copy version as the probe. No new message
+arrived during the sample, so "message time → screen" is **not measured yet**; it will be measured in a busier hour. The banner showed
+更新停止 throughout because of the copy's `warning` status (T-12), not because the copy stopped.
+
 ### 2.3 Finding: the 20-minute rule leaves no margin
 
 The banner rule (REQ §6: data up to 20 minutes old is shown as normal) and TV19/TV21 ("更新停止 within 20 minutes") use the same
@@ -79,38 +84,38 @@ Until you approve, no key is placed on Vercel and the prototype stays unconnecte
 
 Scope as approved: no live data or credentials; "未接続" instead of mock data when data cannot be retrieved.
 
-URL: `https://parttimedashboard.vercel.app/` (live entry) and `/demo/` (anonymized demo, labelled デモ).
+URL: `https://parttimedashboard.vercel.app/` (live entry) and `/demo/` (anonymized demo, labelled デモ). Deployed on 2026-10-14 from commit `0eddab8`.
 
 | Check | Expected | Result |
 |---|---|---|
-| Vercel environment has no source variables (sheet IDs, reader key) | none set | **[10/14]** |
-| Start-up log | `live entry -> client copy NOT CONNECTED (…)` | **[10/14]** |
-| Not signed in: `/api/live/entry` | no data | **[10/14]** |
-| Signed in, live entry `/` | every store 未接続, red 更新停止 banner, strip 「実データに接続できていません … モック・デモは表示しません」; no figures | **[10/14 + screenshot]** |
-| `/demo/` | demo snapshot, labelled デモ | **[10/14 + screenshot]** |
-| Automated tests | all pass | **[10/14: n/n]** |
+| Vercel environment has no source variables (sheet IDs, reader key) | none set | No reader key: confirmed (the live page reports `reader_key_not_configured`; no sheet can be read). Project settings show no source variables (checked 10/14). The reason code nevertheless shows that the deployment sees a copy spreadsheet ID; we are tracing where it comes from and will remove it. The ID alone gives no access. |
+| Start-up log | `live entry -> client copy NOT CONNECTED (…)` | not checked on 10/14 (the page itself shows NOT CONNECTED) |
+| Not signed in: `/api/live/entry` | no data | OK (10/14, private window): `{"ok":false,"error":"unauthenticated"}`, no data |
+| Signed in, live entry `/` | every store 未接続, red 更新停止 banner, strip 「実データに接続できていません … モック・デモは表示しません」; no figures | OK (10/14): strip 「未接続（reader_key_not_configured）｜表示できるデータはありません（モック・デモは表示しません）」, banner 更新停止, every tab 「シートを読み取れません」; no data, no mock — `P3.png` |
+| `/demo/` | demo snapshot, labelled デモ | OK (10/14): strip 「デモ表示｜固定の匿名化データです（実データではありません）」, demo store only — `P4.png` |
+| Automated tests | all pass | 219 / 219 (10/14, PIATEC PC) |
 
 ## 5. Open data issues
 
 ### 5.1 Heartbeat (`心拍`): liveness check, successful processing, accepted transmission
 
-Live copy read on 10/13: 723 rows. Our reading of each form of the `結果` column is below. The **row numbers (元の行番号) and times for
-each form** are in the attached list (`diag:heartbeat --rows`, section [7]); please read the actual text in your sheet at those rows.
-These readings are proposals. Nothing on the screen uses them until you confirm (② ⑤ ⑦ show 状態未判定 meanwhile).
+Live copy read on 2026-10-14 00:41: 730 rows (2026-09-01 – 10-13). Our reading of each form of the `結果` column is below. The
+**row numbers (元の行番号) for each form** are given in the table (from `diag:heartbeat --rows`); please read the actual
+text in your sheet at those rows. These readings are proposals. Nothing on the screen uses them until you confirm (② ⑤ ⑦ show 状態未判定
+meanwhile).
 
 | Form of `結果` (free text shown as `<text>`) | Rows | Liveness check ran | Processing succeeded | Transmission accepted | Our question |
 |---|---|---|---|---|---|
-| `AI=scheduled-off …` | 353 | yes | no (no scheduled AI result that hour) | no | confirm |
-| `AI=max-read N件 / 未分析=… / MEAT=… / IN=…` | 107 | yes | yes | only where `送信MEAT/IN=送` (matches `送信ログ` up to 10/5) | after 10/5, are sends only in `送信ログ`? |
-| `AI=<text> / STOP=analysis-unverified` | 23 | yes | no (stopped) | no | is every `STOP=` a stop? full code list |
-| `AI=<text> / STOP=staff-delivery` | 1 | yes | unclear: analysis may have finished, delivery stopped | no | what stopped? |
-| `owner=accepted` | 13 | — | — | owner notice accepted (our guess) | is this LINE acceptance of an owner notice? |
-| `owner=pc-confirmed` / `owner=pc-uncertain` | 10 / 1 | — | — | unclear | meaning |
-| `AI=<text> / ROUTE=fast-patrol / was=<text>` | 17 (every slot from 10/7 22:00) | yes | unclear | not in this row | the new post-10/5 form: what do `ROUTE` and `was` mean, and which record shows a completed patrol? |
-| `AI=<text>/未分析(AI無)` | 88 | yes | no (not analysed) | no | failure, or nothing to analyse? |
-| free text only (old form, 9/1–9/13, written at :42) | 130 | yes | cannot tell | cannot tell | can we leave this period out of Phase 1 figures? |
+| `AI=scheduled-off / 未分析=…(AI無) / …` | 358 | yes | no (no scheduled AI result that hour) | no | confirm |
+| `AI=max-read N件 / 未分析=… / MEAT=… / IN=…` | 107 (19 with `AIOK` for MEAT or IN) | yes | yes | not in `結果`: read from the columns `送信MEAT` / `送信IN` (`送` = sent; matched `送信ログ` up to 10/5) | does `AIOK` in `結果` mean the AI found something to send? After 10/5, are sends recorded only in `送信ログ`? |
+| `AI=<text> / STOP=analysis-unverified / owner=…` | 23. owner=accepted (12): 元の行番号 534, 604, 608, 663, 673, 677, 687, 845, 850, 855, 859, 864 — note **every slot from 10/6 12:00 to 10/7 17:00** (845–864), just before the fast-patrol form starts. owner=pc-confirmed (10): 562, 631, 635, 659, 701, 771, 803, 822, 827, 836. owner=pc-uncertain (1): row number to follow | yes | no (stopped) | the owner notice only, if `owner=accepted` means LINE accepted it | is every `STOP=` a stop? meaning of the three `owner=` values |
+| `AI=max-read N件 / … / IN=AIOK / STOP=staff-delivery / owner=accepted` | 1 | yes | yes (analysis finished) | unclear: staff delivery stopped | what stopped, and was anything sent to staff? |
+| `AI=<text> / ROUTE=fast-patrol / was=<text>` | 19: one per patrol slot from 10/7 22:00 to 10/13 22:00, at 13:13 / 18:13 / 23:13: 元の行番号 869, 873, 878, 883, 887, 892, 897, 901, 906, 911, 915, 920, 925, 929, 934, 939, 943, 948, 953 | yes | unclear | not in this row | the post-10/5 form: what do `ROUTE` and `was` mean, and which record shows a completed patrol? |
+| `AI=<text> / 未分析=…(AI無) / …` | 92 (88 + 4 with `規則影`). Two groups: (a) 9/1–9/8, hourly daytime checks at :42, e.g. 元の行番号 234–246 (9/1 10:42–22:42); (b) 9/15–10/2 **at the patrol result times 13:13 / 23:13**: 552, 622, 649, 705, 715, 719, 729, 733, 743, 747, 757, 761, 775, 789 | yes | no (not analysed) | no | (a): nothing to analyse, or a failure? (b): these are in the place of a patrol result. Did the patrol run without AI analysis, and should that slot count as a failure? |
+| free text only (old form): 9/1–9/13, 10 rows a night at 00:42–09:42, e.g. 元の行番号 224–233 (9/1), 248–257 (9/2), 512–521 (9/13) | 130 | yes | cannot tell | cannot tell | what did the night-time check record before 9/14? Can this period be left out of Phase 1 figures? |
 
-Counts overlap where one row carries several codes.
+Classes: `scheduled_off` 358, `ai_result` 107, `stop` 24, not recognised 241 (= 19 + 92 + 130). Result rows (`ai_result` / `stop`)
+appear only at 13:13, 18:13 and 23:13, i.e. 73 minutes after the 12:00 / 17:00 / 22:00 slots.
 
 ### 5.2 Questions: period, tab and extraction criteria
 
@@ -120,16 +125,67 @@ Counts overlap where one row carries several codes.
 | Time column | `送信時刻`, read as Asia/Bangkok |
 | Period | business days 10/7–10/13 = from 2026-10-07 05:00 to 2026-10-14 05:00 (+07:00); a business day starts at 05:00 |
 | Rule | every row whose `送信時刻` falls in the period, **any state**; no filter on group, state or slot |
-| Result (10/13 read) | 30 rows in the tab; **1** row in the period |
+| Result (read 2026-10-14 00:41) | 30 rows in the copy tab (元の行番号 11–40; your source tab has 39 rows); **1** row in the period: 元の行番号 40, 2026-10-12 23:45, MEAT, state `waiting` |
 
-The attached list (`diag:reconcile --rows`, section [7b]) gives each row's 元の行番号, `送信時刻`, group, state and whether it is in the
-period, so you can match them against `送信ログ` and your transmission records.
+Every row of the copy tab (from `diag:reconcile --rows`, read 2026-10-14 00:41), so you can match them against `送信ログ` and your
+transmission records:
+
+| 元の行番号 | 送信時刻 (Bangkok) | group | state | in period |
+|---|---|---|---|---|
+| 11 | 2026-09-02 13:42:29 | IN | waiting |  |
+| 12 | 2026-09-04 15:42:28 | IN | waiting |  |
+| 13 | 2026-09-05 11:42:28 | IN | waiting |  |
+| 14 | 2026-09-07 19:42:28 | MEAT | waiting |  |
+| 15 | 2026-09-07 19:42:28 | IN | waiting |  |
+| 16 | 2026-09-14 13:13:17 | MEAT | waiting |  |
+| 17 | 2026-09-16 13:13:17 | MEAT | waiting |  |
+| 18 | 2026-09-16 23:13:17 | MEAT | waiting |  |
+| 19 | 2026-09-17 13:13:16 | IN | waiting |  |
+| 20 | 2026-09-17 23:13:17 | MEAT | waiting |  |
+| 21 | 2026-09-17 23:13:17 | MEAT | waiting |  |
+| 22 | 2026-09-18 13:13:17 | MEAT | waiting |  |
+| 23 | 2026-09-18 13:13:17 | MEAT | waiting |  |
+| 24 | 2026-09-19 23:13:16 | IN | waiting |  |
+| 25 | 2026-09-25 13:13:16 | MEAT | waiting |  |
+| 26 | 2026-10-01 23:13:17 | MEAT | waiting |  |
+| 27 | 2026-10-01 23:13:17 | IN | waiting |  |
+| 28 | 2026-10-02 18:13:24 | MEAT | waiting |  |
+| 29 | 2026-10-02 18:13:24 | IN | waiting |  |
+| 30 | 2026-10-02 23:13:17 | MEAT | waiting |  |
+| 31 | 2026-10-03 18:13:17 | MEAT | waiting |  |
+| 32 | 2026-10-03 23:13:16 | MEAT | waiting |  |
+| 33 | 2026-10-03 23:13:16 | MEAT | waiting |  |
+| 34 | 2026-10-03 23:13:16 | MEAT | waiting |  |
+| 35 | 2026-10-04 13:13:16 | MEAT | waiting |  |
+| 36 | 2026-10-04 13:13:16 | MEAT | waiting |  |
+| 37 | 2026-10-04 13:13:16 | IN | waiting |  |
+| 38 | 2026-10-05 13:13:17 | IN | waiting |  |
+| 39 | 2026-10-05 23:13:24 | IN | waiting |  |
+| 40 | 2026-10-12 23:45:00 | MEAT | waiting | **yes** |
+ What the list shows:
+
+- Rows 11–39 run from 2026-09-02 to 2026-10-05 23:13, all at a slot time + 13 or + 42 minutes (scheduled runs).
+- **No row between 2026-10-05 23:13 and 2026-10-12 23:45**, the period after your 10/5 23:36 change. Row 40 (23:45) is not at a
+  slot time; it may come from the 5-minute polling loop.
+- Your source tab has 39 rows, the copy 30. Are the 9 rows not copied questions to groups outside the copy, or missing?
 
 ### 5.3 Message IDs
 
-11 rows in `ログ` (元の行番号 15410, 15959, 16009, 16566, 17040, 18739, 19976, 20583, 21166, 21329, 22401) hold a rounded `messageId`.
-They are shown by row number, flagged on ⑥, and never merged with other rows. We do not fill in or guess any ID. Their mapping
-(Bot replies, resends) stays **unverified** until you confirm the recovery. New rows after your fix are checked on every read.
+On 2026-10-13 our check found 11 rows in `ログ` with a rounded `messageId` (元の行番号 15410, 15959, 16009, 16566, 17040, 18739, 19976,
+20583, 21166, 21329, 22401). In the read of 2026-10-14 00:41 our check finds none, **but your copy now reports `ログ` with
+`status = warning` and `detail` 「元の長いIDが数値型（末尾復元不可）: 行 …」**: some original IDs are numeric and their last digits cannot
+be restored. We read this as: the IDs are written as text now, but the lost digits are not recovered. Our check no longer sees those
+rows because the damaged values are now stored as text.
+
+Rows listed in your `detail` (36, 元の行番号 of the source): 670, 2380, 3052, 3787, 4601, 5647, 9611, 9614, 9619, 9624, 9629, 9634,
+9640, 9647, 9656, 9667, 9681, 9694, 9708, 9722, 9739, 9755, 12611, 15410, 15959, 16009, 16566, 17040, 18739, 19976, 20583, 21166,
+21329, 22401, 22631, 23067. All 11 rows we found on 10/13 are in this list. The other 25 were not found by our check (they may be
+rows outside the copy, or values our check could not recognise as rounded). Questions: (1) Is this list complete? (2) Rows 22631
+and 23067 are near the end of your source tab: were they written after the string fix, i.e. is the fix complete for new rows?
+
+We have not filled in or guessed any ID. Until you confirm which rows are affected and that the others are the original IDs, the
+mapping (Bot replies, resends) of every row listed in your `detail` is **unverified**. Please confirm that the row list in `detail`
+is complete; we propose to flag exactly those rows on screen (no other change), after your confirmation.
 
 ### 5.4 Nagoya
 
@@ -152,6 +208,7 @@ Phase 2. Kept separate from all Bangkok tests. ① shows Nagoya as 未接続 and
 | T-09 | Format of masked lines in owner reports | Takatsuji-san | open |
 | T-10 | Days with incomplete question records after 10/5: how to mark them | Takatsuji-san | open |
 | T-11 | Start point of the 20 minutes in TV21 (§2.3) | Takatsuji-san | open |
+| T-12 | **Urgent:** since the afternoon of 10/13 the copy's `meta` row for `ログ` has `status = warning`, `detail` 「元の長いIDが数値型（末尾復元不可）: 行 …」. The agreed values are ok / stale / error, so the dashboard shows the red 更新停止 banner for messages although the copy is current (read every 5 min). Option A: treat `warning` as "data current, with a notice" (no red banner; the rows in `detail` flagged). Option B: keep treating it as stopped. We recommend A. Which do you want? | Takatsuji-san | open |
 
 ### 6.2 Decisions on cost, permissions or business: for you
 
@@ -210,3 +267,30 @@ recovery checks. Items that may be out of scope are listed here **before** any w
 | Interim hosting fees on Vercel | platform cost not in the development quote **[PIATEC to confirm]** | **[PIATEC to fill]** |
 | Setting up the final environment beyond deploy and configuration | depends on what D-02 requires | **[PIATEC to fill after D-02]** |
 | Nagoya connection | Phase 2 | Phase 2 quote |
+
+## 9. Automated tests: what was checked with live data and what with test data only
+
+**All 227 automated tests (`npm test`; 219 before the 10/14 screen fixes) run on test data only**: synthetic rows, an in-process
+fake of the Google Sheets API and a local test sign-in. No test reads the client's files, and test COPY-28 fails the build if any
+test refers to the client's sample folder. Passing them shows that the logic works on the cases written into the tests; it is
+**not** evidence about the live data.
+
+Live data was checked separately, read-only, with the dashboard's own code (diagnostic scripts and the running pages). The table
+pairs each test area with the live check, if there is one.
+
+| Area | Test file(s) | Tests | Data in the tests | Live-data check (date, result) |
+|---|---|---|---|---|
+| Copy connection, contract check, transform, limits | `copy.test.js`, `copy-reader.test.js` | 59 | synthetic copy, fake Sheets API | **Yes.** 10/14 00:41 read: both files CONNECTED, contract findings 0 (⑥, `diag:reconcile`) |
+| Messages / sends / questions per day, replies under the original | `acceptance.test.js` (TV1–TV25 display logic), `edge.test.js` | 37 | synthetic | **Yes.** 7 business days 10/7–10/13: 68 checks matched, 0 mismatches; ⑦ = reconcile (1,281 / 1 / 9) |
+| Candidate answers, answer evidence | `answers.test.js` (+ COPY-33…38 in `copy.test.js`) | 8 | synthetic | Partly. Live: 1 question in the 7 days; the rule has not been seen producing a candidate in that window |
+| Freshness banner (更新停止 after 20 min / status not ok) | `freshness.test.js` | 5 | synthetic | **Yes, by chance.** 10/13–10/14 the copy's `warning` status turned the banner red on the live pages (T-12) |
+| Business day, time zones | `time.test.js` | 5 | synthetic | **Yes.** the 05:00 business-day windows used by the live reconciliation |
+| Run status display (時刻前 / 結果待ち / 状態未判定, incl. 1 ms boundaries and the daily run across midnight) | `runs.test.js`, `screen-rules.test.js` | 14 | synthetic | Partly. Live run status is not judged (Q-49), so the live pages show 状態未判定. 「結果待ち」 on live data: to be seen in a slot's result window (e.g. 12:00–13:30) after the fix is deployed |
+| 未回答 / 回答未確認 counts (every state at once, no double counting, response rate from confirmed answers only), question id hidden (also checked in the rendered pages with a synthetic id) | COPY-33 in `copy.test.js`, SCREEN-1/3/4 in `screen-rules.test.js` | (counted above) | synthetic | **To do after deployment** (① and ④ on live data) |
+| Machine heartbeat, light check (⑥) | `production.test.js` (+ TV14 in `acceptance.test.js`) | 7 | synthetic | Partly. Live Heartbeat Sheet read (beats 1,484, alerts 7); the stop scenarios of TV14 cannot be produced on live data |
+| Sign-in, allowlist, read-only API, security headers | `auth.test.js`, `api.test.js`, `security.test.js` | 48 | local test sign-in | Partly. Vercel prototype 10/14: no data without sign-in (`unauthenticated`); an allowlisted Google account signed in. Revocation with real accounts: not yet (TV3) |
+| Live entry never shows mock data; demo separate; Vercel limits | `live-only.test.js`, `vercel.test.js` | 18 | synthetic | **Yes.** Vercel prototype 10/14 (commit `0eddab8`): live entry 未接続, no mock; `/demo/` labelled デモ |
+| Outage detection and recovery | `outage-drill.test.js` | 5 | test connection (synthetic copy) | **No, by design**: production polling is not stopped (client direction 10/13). Real-time drill on the test connection: to follow |
+| Diagnostic scripts themselves | `diagnostics.test.js` | 8 | synthetic | The same scripts were run on live data (reconcile, heartbeat, timing) |
+| Build rules (no write route, no client data in tests, demo is anonymous) | `safety.test.js`, `sample-shape.test.js` | 13 | static code checks / synthetic | Not applicable |
+| **Total** | 19 files | **227** | **all test data** | |

@@ -4,7 +4,7 @@
 import { S } from './strings.ja.js';
 
 const RUN_TONE = {
-  ok: 'tone-ok', silent_ok: 'tone-silent', late: 'tone-late', running: 'tone-wait', not_due: 'tone-wait',
+  ok: 'tone-ok', silent_ok: 'tone-silent', late: 'tone-late', running: 'tone-wait', not_due: 'tone-wait', awaiting: 'tone-await', // ring dot: time passed, no result yet (client 2026-10-14)
   unknown: 'tone-unknown', blocked: 'tone-blocked', missing: 'tone-missing', no_row: 'tone-missing',
   unconfirmed: 'tone-neutral', // listed, not judged (Q-49): must not look like any REQ status colour
 };
