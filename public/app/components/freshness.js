@@ -14,7 +14,7 @@ export function FreshnessIndicator(f) {
       S.fresh.stopped(hhmm(f.lastSuccess)),
       f.sourceThrough && h('span', { class: 'small' }, `（${S.fresh.asOf(hhmm(f.sourceThrough))}）`),
       f.reasons.length > 0 && h('ul', null, f.reasons.map((r) =>
-        h('li', null, `${r.tab}：${S.fresh.reasons[r.kind] ?? r.kind}${r.detail ? `（${r.detail}）` : ''}`))));
+        h('li', null, `${S.tabLabel[r.tab] ?? r.tab}：${S.fresh.reasons[r.kind] ?? r.kind}${r.detail ? `（${r.detail}）` : ''}`))));
   }
   return h('div', { class: 'fresh', role: 'status' },
     f.sourceThrough

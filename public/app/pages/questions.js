@@ -9,6 +9,7 @@ import { Card, AlertCard } from '../components/cards.js';
 import { EvidenceBadge, StatusBadge } from '../components/badges.js';
 import { Chips } from '../components/controls.js';
 import { EmptyState, NotConnectedState } from '../components/states.js';
+import { nearestCandidates } from '../lib/collapse.js';
 
 export const id = 'questions';
 export const needsStore = true;
@@ -41,7 +42,23 @@ function Provenance(q, store) {
       : h('span', { class: 'muted' }, S.detail.sendNotFound)));
 }
 
-function Question(q, store) {
+/** Answers of one question. More than 3 candidates -> the 3 nearest to the question time first, the rest one tap away
+ * (display only: the candidate rule and every count are unchanged; client review 2026-10-19). */
+function Answers(q, store, ctx) {
+  if (!q.answers.length) return h('div', { class: 'small muted' }, `${S.noAnswers}`);
+  const key = `qa:${q.sent_at}|${q.group}|${q.who}`; // toggle key (the internal id is not used on the screen)
+  const all = ctx?.isOpen(key);
+  const { shown, candidateCount, hiddenCount } = nearestCandidates(q.answers, q.sent_at, 3);
+  if (!hiddenCount) return q.answers.map((a) => Answer(a, store));
+  return [
+    h('div', { class: 'small muted' }, S.collapse.candidates(candidateCount, 3)),
+    (all ? q.answers : shown).map((a) => Answer(a, store)),
+    h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': String(Boolean(all)), onclick: () => ctx.toggle(key) },
+      all ? S.collapse.showFewer : S.collapse.showAll(q.answers.length)),
+  ];
+}
+
+function Question(q, store, ctx) {
   return h('section', { class: 'card', id: `q-${q.question_id}` },
     h('div', { class: 'card-head' },
       h('div', null, h('h3', null, `${mdhm(q.sent_at)}　${q.group} → ${q.who}`),
@@ -52,7 +69,7 @@ function Question(q, store) {
     q.inIncompletePeriod && h('div', { class: 'small muted' }, S.questions.inIncompleteNote),
     h('div', { class: 'q' }, q.text),
     q.answersOk
-      ? (q.answers.length ? q.answers.map((a) => Answer(a, store)) : h('div', { class: 'small muted' }, `${S.noAnswers}`))
+      ? Answers(q, store, ctx)
       : h('div', { class: 'small' }, StatusBadge('tone-unknown', S.answersUnreadable, { compact: true })),
     Provenance(q, store));
 }
@@ -71,5 +88,5 @@ export function view(env, ctx) {
       ['answered', `${S.questions.filters.answered} ${c.answered}`], ['closed', `${S.questions.filters.closed} ${c.closed}`]],
     filter.key, (k) => { filter.key = k; ctx.rerender(); }),
     c.waiting > 0 && h('div', { class: 'small muted' }, S.questions.waitingNote),
-    items.length ? items.map((q) => Question(q, d.store)) : EmptyState(S.zero));
+    items.length ? items.map((q) => Question(q, d.store, ctx)) : EmptyState(S.zero));
 }

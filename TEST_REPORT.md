@@ -29,7 +29,7 @@ open questions — `docs/connection-spec.md` §12. **If a verdict in another doc
 | Evidence | Meaning |
 |---|---|
 | **LIVE** | the client's real View-only Copy / Heartbeat Sheet, read with the reader account (GET only) on 2026-10-13; outputs were pasted into the working session; raw output files are **not** in the repository |
-| **SYN** | automated tests on synthetic data (`npm test`, 230 tests since the 10/19 fixes (227 after the 10/14 fixes, 219 before them, 202 before the live-only change)) or the headless UI review (`scripts/ui-review.mjs`) |
+| **SYN** | automated tests on synthetic data (`npm test`, 236 tests since the 10/19 display fixes (230 after the 10/19 fixes, 227 after the 10/14 fixes, 219 before them, 202 before the live-only change)) or the headless UI review (`scripts/ui-review.mjs`) |
 | **MAN** | a manual check by a person |
 
 REQ §8 types: **A** = Phase 1 real data, **B** = Phase 1 test data (display only), **C** = Phase 2 real data.

@@ -19,10 +19,12 @@ export function view(env, ctx) {
   const t = d.totals;
   return h('div', { class: 'stack' },
     h('div', { class: 'small muted' }, S.failures.days(d.days)),
-    d.runStatusUnconfirmed && AlertCard(null, S.runStatusUnconfirmed, 'warn'),
-    Metrics(...[[S.failures.missing, t.missing], [S.failures.blocked, t.blocked], [S.failures.late, t.late], [S.failures.unknown, t.unknown]]
-      .map(([label, n]) => MetricCard(label, d.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${n}`))), // not judged (Q-49) is not "0"
-    Card({ title: `${S.pages.failures.title}` },
+    // Q-49 / T-01 pending: ONE message instead of four 未判定 tiles and an empty list (client review 2026-10-19). Nothing is shown
+    // as "0" - the run figures are simply not judged until the rule is decided.
+    d.runStatusUnconfirmed && AlertCard(null, S.runStatusPending, 'warn'),
+    !d.runStatusUnconfirmed && Metrics(...[[S.failures.missing, t.missing], [S.failures.blocked, t.blocked], [S.failures.late, t.late], [S.failures.unknown, t.unknown]]
+      .map(([label, n]) => MetricCard(label, `${n}`))),
+    (!d.runStatusUnconfirmed || d.items.length > 0) && Card({ title: `${S.pages.failures.title}` },
       d.items.length ? h('div', { class: 'rows' }, d.items.map((r) => {
         const key = `f:${r.store}:${r.key}`;
         const open = ctx.isOpen(key);
@@ -37,7 +39,7 @@ export function view(env, ctx) {
             r.onTodayPage && h('a', { href: href.today(r.store) }, S.link.toToday),
             h('a', { href: href.messages(r.store, r.businessDay) }, S.link.toMessages)),
           open && h('div', { class: 'detail' }, runValues(r)));
-      })) : EmptyState(d.runStatusUnconfirmed ? S.run.unconfirmed : S.failures.none)),
+      })) : EmptyState(S.failures.none)),
     Card({ title: S.failures.sends },
       d.unclassifiedSends > 0 && h('div', { class: 'small muted' }, S.failures.unclassifiedSends(d.unclassifiedSends)),
       d.sendProblems.length ? h('div', { class: 'rows' }, d.sendProblems.map((s) => h('div', { class: 'row' },

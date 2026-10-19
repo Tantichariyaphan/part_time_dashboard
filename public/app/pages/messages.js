@@ -9,6 +9,7 @@ import { Card, KeyValues, MetricCard, Metrics } from '../components/cards.js';
 import { StatusBadge } from '../components/badges.js';
 import { Chips, Select } from '../components/controls.js';
 import { EmptyState, NotConnectedState } from '../components/states.js';
+import { groupMediaRuns, kindCounts } from '../lib/collapse.js';
 
 export const id = 'messages';
 export const needsStore = true;
@@ -66,6 +67,30 @@ function Message(m, store, ctx) {
     open && Detail(m));
 }
 
+/** Consecutive images / stickers of one sender as one row (display only; client review 2026-10-19). Every message keeps
+ * its anchor so links (focus=) still land here, and "個別に表示" shows each one as before. */
+function MediaRun(items, store, ctx) {
+  const first = items[0];
+  const last = items[items.length - 1];
+  const key = `mg:${first.message_id}`;
+  const focus = ctx.query?.get?.('focus');
+  const open = ctx.isOpen(key) || items.some((m) => m.message_id === focus);
+  if (open) {
+    return h('div', { class: 'msg-run' }, items.map((m) => Message(m, store, ctx)),
+      h('div', { class: 'msg-foot' }, h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': 'true', onclick: () => ctx.toggle(key) }, S.collapse.mediaClose)));
+  }
+  const mark = ['pending', 'carried', 'failed', 'unknown'].includes(first.handling)
+    ? StatusBadge(handlingTone(first.handling), S.handling[first.handling], { compact: true, title: S.collapse.mediaHandling }) : null;
+  const t0 = hhmm(first.at); const t1 = hhmm(last.at);
+  return h('div', { class: 'msg msg--run', id: `m-${first.message_id}` },
+    items.slice(1).map((m) => h('span', { id: `m-${m.message_id}`, class: 'anchor', 'aria-hidden': 'true' })),
+    h('div', { class: 'msg-meta' }, h('span', { class: 'time' }, t0 === t1 ? t0 : `${t0}–${t1}`), h('span', null, first.group), h('span', null, first.sender), mark,
+      items.some((m) => m.idDamaged) && StatusBadge('tone-unknown', S.idDamaged, { compact: true, wrap: true })),
+    h('div', { class: 'msg-text placeholder' }, S.collapse.media(kindCounts(items))),
+    h('div', { class: 'msg-foot' }, RunChip(first.run, store),
+      h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': 'false', onclick: () => ctx.toggle(key) }, S.collapse.mediaOpen)));
+}
+
 export function view(env, ctx) {
   const d = env.data;
   if (d.connection !== 'connected') return NotConnectedState();
@@ -82,6 +107,6 @@ export function view(env, ctx) {
       Chips([['all', S.filterAll], ['replied', S.messages.replied], ['problem', S.messages.problem]], filter.mode, (k) => { filter.mode = k; ctx.rerender(); }),
       d.groups.length > 1 && Chips([['all', `${S.messages.group}：${S.filterAll}`], ...d.groups.map((g) => [g, g])], filter.group, (k) => { filter.group = k; ctx.rerender(); })),
     Card({ title: `${d.display_name}　${dateLabel(d.businessDay)}` },
-      items.length ? h('div', { class: 'rows' }, items.map((m) => Message(m, d.store, ctx)))
+      items.length ? h('div', { class: 'rows' }, groupMediaRuns(items).map((g) => (g.type === 'media' ? MediaRun(g.items, d.store, ctx) : Message(g.m, d.store, ctx))))
         : EmptyState(d.total.state === 'unpulled' ? S.notPulled : S.zero)));
 }

@@ -78,6 +78,8 @@ export const S = {
   },
   // Run status is not read from the source until the client decides how (Q-49). Wording provisional (Q-24).
   runStatusUnconfirmed: '巡回結果の読み方が発注者側で未決定のため、巡回・日次の状態は判定していません（予定時刻のみ表示）。',
+  // ⑤ / ⑦: one message instead of several 未判定 tiles while the rule is pending (Q-49 / T-01)
+  runStatusPending: '巡回結果の判定ルールは発注者からの連絡待ちです。ルールが決まるまで、巡回・日次の欠落・停止・遅延・成功率は判定しません（予定時刻のみ表示）。',
   questionsIncomplete: (t) => `${t} 以降の質問記録は不完全な可能性があります。件数は実際より少ない可能性があります。`, // Q-52: completeness unconfirmed; never claims recovery
   questionsIncompleteShort: '記録が不完全',
   runDerived: { unrecognized: '未知の状態値', deadline_passed_running: '実行中のまま期限超過' },
@@ -116,11 +118,25 @@ export const S = {
   answersUnreadable: '回答を読み取れません',
   noAnswers: 'まだありません',
   answerCandidate: '関連の可能性（未確認）',
+  // display-only shortening (client review of the live screens, 2026-10-19) - counts and rules are unchanged
+  collapse: {
+    candidates: (n, shown) => `関連の可能性 ${n}件（質問時刻に近い${shown}件を表示）`,
+    showAll: (n) => `すべて表示（${n}件）`, showFewer: '近い3件だけ表示',
+    media: (counts) => Object.entries(counts).map(([k, n]) => `(${({ photo: '画像', sticker: 'スタンプ' })[k] ?? 'その他'} ×${n})`).join(' '),
+    mediaOpen: '個別に表示', mediaClose: 'まとめて表示',
+    mediaHandling: '画像・スタンプへの対応状況（1件ずつではなくまとめて表示）',
+    idDamaged: (n) => `ID破損 ${n}行`, idDamagedKept: (n) => `ID破損 ${n}行（表示は継続）`, more: (n) => `ほか${n}行`, rowsShort: (n) => `${n}行`, showRows: '行番号を表示', hideRows: '行番号を隠す',
+  },
+  // Thai tab names of the dashboard data (REQ §5-3, internal) -> Japanese display names. The internal names are unchanged.
+  tabLabel: { 'ทะเบียนรอบตรวจ': '巡回台帳', 'ทะเบียนคำถาม': '質問台帳', 'บันทึกการส่ง': '送信ログ', 'ทะเบียนข้อความ': 'メッセージ台帳' },
   cancelNote: '',
   // pages
   all: {
     patrol: '巡回', daily: '日次', questions: '質問', waiting: '未回答（候補なし）', candidate: (n) => `回答未確認 ${n}件`, messages: '本日のメッセージ', botReplies: 'Bot返信',
     machine: '稼働機', lightCheck: '簡易チェック', unit: '件',
+    summaryToday: '今日', patrolPlanned: (n) => `巡回${n}回予定`, scheduleUnknown: '巡回予定 未確認',
+    waitingShort: (n) => `未回答（候補なし）${n}件`, candidateShort: (n) => `回答未確認${n}件`,
+    machineShort: { ok: '稼働機 正常', red: '稼働機 異常', unknown: '稼働機 不明', not_connected: '稼働機 未接続' },
   },
   today: {
     input: '入力', questions: '質問', sentMessages: '送信', owner: 'オーナー要判断', read: '読取', ai: 'AI完了', sent: '送信',
@@ -138,7 +154,7 @@ export const S = {
     unclassifiedSends: (n) => `結果の値を分類できない送信 ${n}件（失敗とは判定していません）` },
   machines: {
     updates: 'データ更新', machines: '稼働機', light: '簡易チェック', alerts: '最近のアラート', production: '本番', standby: '待機',
-    lastSuccess: '最終成功', through: '記録時点', heartbeat: 'ハートビート', ago: (m) => `${m}分前`, verify: '自己検査', failItems: '失敗項目',
+    status: '状態', lastSuccess: '最終成功', through: '記録時点', heartbeat: 'ハートビート', ago: (m) => `${m}分前`, verify: '自己検査', failItems: '失敗項目',
     disk: 'ディスク空き', clock: '時刻ずれ', noSheet: 'ハートビートシートが未接続です', alertKind: { silent: '応答なし', recovered: '復旧', fail: '自己検査失敗' },
     notJudged: '待機機の判定基準は未確認', window: '対象時間', noBeat: '本番機のハートビートがありません',
     generated: (t, ago) => `生成 ${t}（${ago}）`, lastHour: '直近60分の受信', perInterval: (m) => `（${m}分ごとに書込み）`,
@@ -159,5 +175,6 @@ export const S = {
     unknownOrigin: (n) => `元メッセージ不明の返信 ${n}件`, notConcluded: (n) => `確認済みの回答率は未集計（関連の可能性 ${n}件）`,
     minutes: (m) => `${Math.round(m)}分`, unconfirmedSchedule: 'スケジュール未確認の期間を含みます',
     rateUnconfirmed: '未判定',
+    runRows: '巡回・日次（成功率／欠落・停止）', pendingRule: '判定ルール待ち',
   },
 };

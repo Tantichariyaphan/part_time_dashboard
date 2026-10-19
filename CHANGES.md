@@ -3,6 +3,28 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-19 (b) — shorter screens after the first look at the live data (display only)
+
+Nothing here changes a count, a state, a candidate rule or the data read; every shortened item is one tap away.
+- **④ 質問と回答:** a question with more than 3 possibly related answers shows 「関連の可能性 N件（質問時刻に近い3件を表示）」, the 3
+  candidates nearest to the question time and 「すべて表示（N件）」. Confirmed answers are always shown.
+- **⑥ / update banner:** the dashboard-data tab names are shown in Japanese (巡回台帳 / 質問台帳 / 送信ログ / メッセージ台帳); the
+  internal (contract) names are unchanged. The ⑥ column header `status` is now 「状態」.
+- **③ メッセージ:** consecutive images / stickers of the same sender in the same group (≤ 5 min apart, same handling, no question
+  link, no Bot reply) become one row 「21:59–22:00 … (画像 ×18)」 with one handling badge and 「個別に表示」. Every message keeps its
+  link anchor, and a link to a grouped message opens the group.
+- **① 全店舗:** each card starts with one line, e.g. 「今日：巡回3回予定・未回答（候補なし）2件・回答未確認32件・稼働機 正常」. The
+  evidence badge 「? 不明」 is no longer shown when its only reason is the pending run-status rule (the card says so in words);
+  any other reason (not connected, candidate, …) keeps the badge.
+- **⑤ / ⑦ while the run-status rule is pending (Q-49 / T-01):** one message 「巡回結果の判定ルールは発注者からの連絡待ちです…」
+  instead of four 未判定 tiles and an empty list (⑤) or three 未判定 rows (⑦ → one row 「判定ルール待ち」). Never shown as 0.
+- **⑥ long row-number lists:** a meta detail ending in a long list of row numbers, and the copy's `rounded_identifier` warnings,
+  are folded to 「ID破損 36行」 + 「行番号を表示」 (the full original text / row numbers when opened).
+- New `public/app/lib/collapse.js` (pure, no DOM). Tests SCREEN-7 … SCREEN-12 (fail on the previous code). 230 → 236, synthetic
+  data only. Headless UI review (mock): no findings; page render check with live-like synthetic data (18 images, 12 candidates,
+  36 damaged ids, rule pending): no errors.
+- **Not verified on live data yet.**
+
 ## Unreleased — 2026-10-19 — screen fixes requested by the client (Maru-san, 10/18)
 
 - **No internal ids in the 「詳細」 panels:** ③ message detail no longer prints `message_id`, `run_id` or `send_id`; it shows the

@@ -153,3 +153,11 @@ a.msg--link:hover { background: #faf9f6; }
 .beat--fail { border-color: var(--st-blocked); color: var(--st-blocked); font-weight: 700; }
 .msg, section.card { scroll-margin-top: 150px; }
 .is-focus { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* display-only shortening (client review of the live screens, 2026-10-19) */
+.summary-line { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.msg-run { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.msg-run > .msg:last-of-type { border-bottom: 1px dashed var(--line); }
+.msg .anchor { display: block; height: 0; overflow: hidden; scroll-margin-top: 150px; }
+.sub.rowlist, .rowlist { display: block; word-break: break-all; }
+td .linkbtn, .row-top .linkbtn { margin-left: 6px; }

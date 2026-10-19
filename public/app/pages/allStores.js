@@ -24,19 +24,34 @@ function scheduleLine(label, part, store) {
       : h('span', { class: 'muted' }, '—')));
 }
 
+/** One line on top of the card: 今日：巡回3回予定・未回答（候補なし）2件・回答未確認5件・稼働機 正常 (display only). */
+export function summaryLine(s) {
+  const A = S.all;
+  const parts = [];
+  if (s.patrol.scope !== 'out_of_scope') parts.push(s.patrol.unconfirmedSchedule ? A.scheduleUnknown : A.patrolPlanned(s.patrol.items.length));
+  parts.push(A.waitingShort(s.waitingQuestions));
+  if (s.candidateQuestions) parts.push(A.candidateShort(s.candidateQuestions));
+  parts.push(A.machineShort[s.machine?.state] ?? A.machineShort.unknown);
+  return `${A.summaryToday}：${parts.join('・')}`;
+}
+
 export function view(env) {
   const stores = env.data.stores;
   if (!stores.length) return EmptyState(S.noStores, S.noStoresBody);
   return h('div', { class: 'stack' },
     h('div', { class: 'card card--glass keep-color' }, Legend()),
     stores.map((s) => {
-      const head = { title: s.display_name, href: `#/today?store=${encodeURIComponent(s.store)}`, aside: EvidenceBadge(s.capability.evidence, { title: s.capability.evidenceReason === 'run_status_unconfirmed' ? S.runStatusUnconfirmed : undefined }) };
-      if (s.connection !== 'connected') return Card(head, NotConnectedState());
+      // The evidence badge alone ("? 不明") read as an error on the live screen (client review 2026-10-19). When the only reason
+      // is the pending run-status rule, the card says it in words below instead; any other reason keeps the badge.
+      const runRuleOnly = s.capability.evidenceReason === 'run_status_unconfirmed';
+      const head = { title: s.display_name, href: `#/today?store=${encodeURIComponent(s.store)}`, aside: runRuleOnly ? null : EvidenceBadge(s.capability.evidence) };
+      if (s.connection !== 'connected') return Card({ ...head, aside: EvidenceBadge(s.capability.evidence) }, NotConnectedState());
       return Card(head,
         h('div', { class: 'stack' },
+          h('div', { class: 'summary-line' }, summaryLine(s)),
           scheduleLine(S.all.patrol, s.patrol, s.store),
           scheduleLine(S.all.daily, s.daily, s.store),
-          (s.patrol.unconfirmedStatus || s.daily.unconfirmedStatus) && h('div', { class: 'small muted' }, S.runStatusUnconfirmed),
+          (runRuleOnly || s.patrol.unconfirmedStatus || s.daily.unconfirmedStatus) && h('div', { class: 'small muted' }, S.runStatusUnconfirmed),
           Metrics(
             MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled, null, { href: href.today(s.store) }),
             MetricCard(S.all.waiting, `${s.waitingQuestions}${S.all.unit}`, [S.all.candidate(s.candidateQuestions ?? 0), s.questionsIncomplete ? S.questionsIncompleteShort : null].filter(Boolean).join('　'), { href: href.questions(s.store) }),

@@ -42,18 +42,21 @@ export function view(env, ctx) {
   if (!stores.length) return EmptyState(S.noStores);
   const col = (fn) => stores.map((s) => (s.connection === 'connected' ? fn(s.metrics) : NC()));
   const chartStore = connected.find((s) => s.store === ctx.store) ?? connected[0];
+  const allRunPending = connected.length > 0 && connected.every((s) => s.metrics.runStatusUnconfirmed);
 
   return h('div', { class: 'stack' },
     Chips([['7', S.periods.d7], ['30', S.periods.d30]], String(d.days), (k) => ctx.go('periods', { days: k, store: ctx.store })),
     connected.some((s) => s.metrics.unconfirmedSchedule) && AlertCard(null, S.periods.unconfirmedSchedule, 'warn'),
-    connected.some((s) => s.metrics.runStatusUnconfirmed) && AlertCard(null, S.runStatusUnconfirmed, 'warn'),
+    connected.some((s) => s.metrics.runStatusUnconfirmed) && AlertCard(null, S.runStatusPending, 'warn'),
     Card({ title: S.pages.periods.title, sub: `${d.days === 7 ? S.periods.d7 : S.periods.d30}` },
       DataTable({
         columns: ['', ...stores.map((s) => s.display_name)],
         rows: [
-          [S.periods.patrolRate, ...col((m) => rateCell(m.patrolRate))],
-          [S.periods.dailyRate, ...col((m) => rateCell(m.dailyRate))],
-          [S.periods.stopped, ...col((m) => (m.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`))],
+          // Q-49 / T-01 pending for every store: one row "判定ルール待ち" instead of three rows of 未判定 (client review 2026-10-19)
+          ...(allRunPending ? [[S.periods.runRows, ...col(() => h('span', { class: 'muted' }, S.periods.pendingRule))]] : [
+            [S.periods.patrolRate, ...col((m) => rateCell(m.patrolRate))],
+            [S.periods.dailyRate, ...col((m) => rateCell(m.dailyRate))],
+            [S.periods.stopped, ...col((m) => (m.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`))]]),
           [S.periods.questions, ...col((m) => h('span', null, `${m.questionsSent}`, m.questionsIncomplete && h('span', { class: 'sub' }, S.questionsIncompleteShort)))],
           [S.periods.response, ...col((m) => responseCell(m.responseRate))],
           [S.periods.answerTime, ...col((m) => timeCell(m.timeToAnswer))],

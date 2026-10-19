@@ -104,3 +104,84 @@ test('SCREEN-6 questions in the incomplete tracking period are marked on ④', a
   assert.match(code, /q\.inIncompletePeriod && StatusBadge/);
   assert.match(code, /S\.questions\.waitingNote/);
 });
+
+// ---------------------------------------------------------------- client review of the live screens (2026-10-19), display only
+test('SCREEN-7 ④ more than 3 candidates: the 3 nearest to the question time first, confirmed answers always shown, nothing removed', async () => {
+  const { nearestCandidates } = await import('../public/app/lib/collapse.js');
+  const at = (d, hm) => `2026-10-${d}T${hm}:00+07:00`;
+  const cand = (d, hm) => ({ at: at(d, hm), link: 'candidate', text: `${d} ${hm}` });
+  const answers = [cand('01', '09:00'), cand('02', '13:20'), cand('02', '13:06'), { at: at('03', '10:00'), link: 'confirmed', text: 'c' }, cand('02', '14:00'), cand('20', '22:00')];
+  const r = nearestCandidates(answers, at('02', '13:05'), 3);
+  assert.equal(r.candidateCount, 5, 'the count is every candidate (rule unchanged)');
+  assert.deepEqual(r.shown.map((a) => a.text), ['02 13:20', '02 13:06', 'c', '02 14:00'], 'nearest 3 candidates + the confirmed one, original order');
+  assert.equal(r.hiddenCount, 2);
+  assert.equal(r.shown.length + r.hiddenCount, answers.length);
+  assert.deepEqual(nearestCandidates(answers.slice(0, 3), at('02', '13:05')).hiddenCount, 0, '3 or fewer: all shown');
+  const code = page('questions.js');
+  assert.match(code, /S\.collapse\.showAll\(q\.answers\.length\)/, 'the full list is one tap away');
+});
+
+test('SCREEN-8 ⑥ / banner: Thai tab names are shown in Japanese; the internal names are unchanged', async () => {
+  const { TAB_NAME, META_TAB_KEYS } = await import('../src/contract/enums.js');
+  for (const k of META_TAB_KEYS) {
+    const ja = S.tabLabel[TAB_NAME[k]];
+    assert.ok(ja, `label for ${k}`);
+    assert.doesNotMatch(ja, /[฀-๿]/, 'no Thai on the screen');
+  }
+  assert.equal(TAB_NAME.runs, 'ทะเบียนรอบตรวจ', 'contract name kept');
+  assert.match(page('machines.js'), /tabLabel\(u\.tab\)/);
+  assert.match(page('machines.js'), /tabLabel\(t\.tab\)/);
+  assert.match(readFileSync(new URL('../public/app/components/freshness.js', import.meta.url), 'utf8'), /S\.tabLabel\[r\.tab\]/);
+});
+
+test('SCREEN-9 ③ consecutive images / stickers of one sender become one row; anything with a question or reply stays its own row', async () => {
+  const { groupMediaRuns, kindCounts } = await import('../public/app/lib/collapse.js');
+  const m = (id, hm, kind = 'photo', extra = {}) => ({ message_id: id, at: `2026-10-19T${hm}:00+07:00`, kind, group: 'PHOTO', sender: 'A', handling: 'unknown', replies: [], repliesOk: true, ...extra });
+  const items = [m('1', '21:59'), m('2', '21:59'), m('3', '22:00', 'sticker'), m('4', '22:01', 'text'), m('5', '22:02'),
+    m('6', '22:03', 'photo', { replies: [{ at: 'x' }] }), m('7', '22:04'), m('8', '22:05', 'photo', { sender: 'B' }), m('9', '22:30', 'photo', { sender: 'B' })];
+  const g = groupMediaRuns(items);
+  assert.deepEqual(g.map((x) => (x.type === 'media' ? x.items.map((i) => i.message_id).join('+') : x.m.message_id)), ['1+2+3', '4', '5', '6', '7', '8', '9']);
+  assert.deepEqual(kindCounts(g[0].items), { photo: 2, sticker: 1 });
+  assert.equal(S.collapse.media({ photo: 18 }), '(画像 ×18)');
+  assert.equal(g.reduce((n, x) => n + (x.type === 'media' ? x.items.length : 1), 0), items.length, 'no message is dropped');
+  const code = page('messages.js');
+  assert.match(code, /id: `m-\$\{m\.message_id\}`, class: 'anchor'/, 'every grouped message keeps its link anchor');
+  assert.match(code, /some\(\(m\) => m\.message_id === focus\)/, 'a link to a grouped message opens the group');
+});
+
+test('SCREEN-10 ① the card has a one-line summary; the evidence badge is replaced only when the pending run rule is the reason', async () => {
+  const { summaryLine } = await import('../public/app/pages/allStores.js');
+  const code = page('allStores.js');
+  assert.match(code, /runRuleOnly \? null : EvidenceBadge/);
+  assert.match(code, /runRuleOnly \|\| s\.patrol\.unconfirmedStatus/, 'the pending rule is still said in words on the card');
+  assert.equal(S.all.machineShort.ok, '稼働機 正常');
+  { // summaryLine is pure (no DOM)
+    const s = { patrol: { scope: 'in_scope', items: [1, 2, 3] }, waitingQuestions: 2, candidateQuestions: 0, machine: { state: 'ok' } };
+    assert.equal(summaryLine(s), '今日：巡回3回予定・未回答（候補なし）2件・稼働機 正常');
+    assert.equal(summaryLine({ ...s, patrol: { scope: 'in_scope', unconfirmedSchedule: true, items: [] }, candidateQuestions: 32, machine: { state: 'red' } }),
+      '今日：巡回予定 未確認・未回答（候補なし）2件・回答未確認32件・稼働機 異常');
+  }
+});
+
+test('SCREEN-11 ⑤ / ⑦ run rule pending: one message, no 未判定 tiles and no 0', () => {
+  const f = page('failures.js');
+  assert.match(f, /d\.runStatusUnconfirmed && AlertCard\(null, S\.runStatusPending/);
+  assert.match(f, /!d\.runStatusUnconfirmed && Metrics/);
+  const p = page('periods.js');
+  assert.match(p, /allRunPending \? \[\[S\.periods\.runRows/);
+  assert.doesNotMatch(S.runStatusPending, /0/);
+});
+
+test('SCREEN-12 ⑥ a long row-number list is folded to 「ID破損 N行」, the full text one tap away', async () => {
+  const { rowListSummary, isIdDamageText } = await import('../public/app/lib/collapse.js');
+  const rows = Array.from({ length: 36 }, (_, i) => 670 + i * 10);
+  const text = `警告: 元の長いIDが数値型または指数表記（末尾復元不可）: 行 ${rows.join(',')}`;
+  const r = rowListSummary(text);
+  assert.equal(r.rows.length, 36);
+  assert.ok(isIdDamageText(r.head));
+  assert.equal(S.collapse.idDamaged(r.rows.length), 'ID破損 36行');
+  assert.equal(rowListSummary('警告: 行 1,2,3'), null, 'short lists are shown as they are');
+  assert.equal(rowListSummary('ok'), null);
+  assert.equal(isIdDamageText('読み取り遅延'), false);
+  assert.match(page('machines.js'), /open && h\('span', \{ class: 'sub rowlist' \}, full\)/);
+});
