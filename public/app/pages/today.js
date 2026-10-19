@@ -57,7 +57,6 @@ async function loadDetail(box, ctx, runId) {
     const { messages, questions, run, sends } = env.data;
     box.append(...[ // native append: skip empty parts explicitly
       h('div', { class: 'detail' }, KeyValues([
-        [S.detail.runId, run.run_id],
         [S.detail.posted, time(run.posted_at)], [S.detail.received, time(run.received_at)],
         [S.detail.updated, run.updated_at ? mdhm(run.updated_at) : '—'],
         [S.detail.evidence, run.evidence ?? '—'],
@@ -65,7 +64,7 @@ async function loadDetail(box, ctx, runId) {
       sends.length > 0 && h('div', null, h('h3', null, S.detail.sends),
         sends.map((x) => h('div', { class: 'row-top small' },
           x.found ? [h('span', { class: 'time' }, hhmm(x.sent_at)), h('span', null, x.target_label), StatusBadge(sendTone(x.result), S.sendResult[x.result] ?? S.unknown, { compact: true })]
-            : h('span', { class: 'muted' }, `${x.send_id}：${S.detail.sendNotFound}`)))),
+            : h('span', { class: 'muted' }, S.detail.sendNotFound)))),
       h('div', null, h('h3', null, `${S.pages.messages.title} ${messages.length}${S.all.unit}`),
         messages.length ? messages.map((m) => h('a', { class: 'msg msg--link', href: href.messages(ctx.store, m.businessDay, m.message_id) },
           h('div', { class: 'msg-meta' }, h('span', { class: 'time' }, hhmm(m.at)), h('span', null, m.group), h('span', null, m.sender)),

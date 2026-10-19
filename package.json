@@ -16,6 +16,7 @@
     "diag:heartbeat": "node --env-file=.env scripts/analyze-heartbeat.js",
     "diag:reconcile": "node --env-file=.env scripts/reconcile.js",
     "diag:timing": "node --env-file=.env scripts/timing-probe.js",
-    "drill:outage": "node scripts/outage-drill.js"
+    "drill:outage": "node scripts/outage-drill.js",
+    "check:access": "node scripts/access-check.mjs"
   }
 }

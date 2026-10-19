@@ -169,3 +169,21 @@ test('LIVE-12 .vercelignore keeps local secrets and client data out of any deplo
   for (const must of ['.env', '.env.*', 'config/allowlist.json', 'config/reader-key*.json', '*.key.json', 'secrets/', 'Claude outputs/', `docs/sample ${'data'}_*/`]) assert.ok(lines.includes(must), must); // name split: COPY-28
   for (const keep of ['api', 'public', 'src', 'server', 'config', 'config/stores.json', 'package.json', 'vercel.json']) assert.equal(lines.some((l) => l.replace(/\/$/, '') === keep), false, keep);
 });
+
+// Client condition of 2026-10-19: the reader key is used by the production Vercel deployment only.
+test('LIVE-PREVIEW a Preview / Development deployment never reads the client files, even with the source variables set', async () => {
+  for (const env of ['preview', 'development']) {
+    let tokenCalls = 0;
+    const logs = [];
+    const live = chooseLiveAdapter(srcEnv({ VERCEL: '1', VERCEL_ENV: env, NIKUSHO_READER_KEY_JSON: '{"client_email":"x@example.invalid","private_key":"NOT-A-KEY"}' }),
+      { getAccessToken: async () => { tokenCalls += 1; return 'token'; }, log: (m) => logs.push(m) });
+    assert.equal(live.unavailable, 'not_production_deployment', env);
+    const res = await liveBodies(live);
+    assert.equal(tokenCalls, 0, `${env}: no token requested, no read`);
+    assert.equal(res.entry.body.data.sources.copy.reason, 'not_production_deployment');
+    assert.equal(res.entry.body.data.sources.copy.state, 'NOT_CONNECTED');
+    assert.equal(/NOT-A-KEY|x@example\.invalid/.test(JSON.stringify(res) + logs.join('\n')), false, 'key material never echoed');
+  }
+  const prod = chooseLiveAdapter(srcEnv({ VERCEL: '1', VERCEL_ENV: 'production' }), { log: silent });
+  assert.notEqual(prod.unavailable, 'not_production_deployment', 'production deployment unchanged');
+});

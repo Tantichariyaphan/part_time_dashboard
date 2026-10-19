@@ -39,11 +39,11 @@ function RunChip(run, store) {
 function Detail(m) {
   return h('div', { class: 'detail' },
     KeyValues([
-      [S.detail.messageId, m.message_id],
+      // no internal ids (message_id / run_id / send_id) on the normal screen (client 2026-10-18); they stay in the API for support
       [S.detail.kind, S.kindName[m.kind] ?? S.unknown],
       [S.detail.handling, S.handling[m.handling] || S.detail.none],
-      [S.detail.runId, m.run?.run_id ?? S.detail.none],
-      ...m.replies.map((r, i) => [`${S.detail.sendId} ${i + 1}`, `${r.send_id ?? S.detail.none}（${S.sendResult[r.result] ?? S.unknown}）`]),
+      [S.detail.run, m.run?.found ? mdhm(m.run.scheduledAt) : S.detail.none],
+      ...m.replies.map((r, i) => [S.detail.reply(i + 1), S.sendResult[r.result] ?? S.unknown]),
     ]));
 }
 

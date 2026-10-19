@@ -47,7 +47,9 @@ function Question(q, store) {
       h('div', null, h('h3', null, `${mdhm(q.sent_at)}　${q.group} → ${q.who}`),
         q.state === 'waiting' && q.waitHours !== null && h('div', { class: 'sub' }, S.questions.wait(q.waitHours)),
         q.state === 'closed' && q.closed_reason && h('div', { class: 'sub' }, S.closedReason[q.closed_reason] ?? S.unknown)),
-      StatusBadge(qTone(q.state), S.qstate[q.state] ?? S.unknown, { wrap: true })),
+      h('div', { class: 'badges' }, StatusBadge(qTone(q.state), S.qstate[q.state] ?? S.unknown, { wrap: true }),
+        q.inIncompletePeriod && StatusBadge('tone-unknown', S.questions.inIncomplete, { compact: true, wrap: true }))),
+    q.inIncompletePeriod && h('div', { class: 'small muted' }, S.questions.inIncompleteNote),
     h('div', { class: 'q' }, q.text),
     q.answersOk
       ? (q.answers.length ? q.answers.map((a) => Answer(a, store)) : h('div', { class: 'small muted' }, `${S.noAnswers}`))
@@ -68,5 +70,6 @@ export function view(env, ctx) {
       ['candidate', `${S.questions.filters.candidate} ${c.candidate ?? 0}`],
       ['answered', `${S.questions.filters.answered} ${c.answered}`], ['closed', `${S.questions.filters.closed} ${c.closed}`]],
     filter.key, (k) => { filter.key = k; ctx.rerender(); }),
+    c.waiting > 0 && h('div', { class: 'small muted' }, S.questions.waitingNote),
     items.length ? items.map((q) => Question(q, d.store)) : EmptyState(S.zero));
 }

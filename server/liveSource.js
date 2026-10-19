@@ -84,20 +84,29 @@ export function createProductionLiveAdapter(env = process.env, { getAccessToken,
   const e = { ...env };
   if (!e.NIKUSHO_STORES_JSON && !e.NIKUSHO_STORES_FILE) e.NIKUSHO_STORES_FILE = BUNDLED_STORES_FILE; // the shipped Bangkok configuration
   const requested = String(e.NIKUSHO_LIVE_ADAPTER ?? 'copy').trim();
-  let built;
-  try {
-    built = readers ?? createLiveReaders(e, { getAccessToken, timeoutMs });
-  } catch (err) {
-    if (!(err instanceof SourceConfigError)) throw err;
-    log(`[source] live entry NOT CONNECTED - source configuration: ${err.message}`);
-    // Still list the configured stores (all 未接続) when the stores configuration itself is readable.
+  // Still list the configured stores (all 未接続) when the stores configuration itself is readable.
+  const unavailable = (code) => {
     let storesCfg = {};
     const bare = { ...e, NIKUSHO_COPY_SPREADSHEET_ID: '', NIKUSHO_HEARTBEAT_SPREADSHEET_ID: '', NIKUSHO_READER_KEY_JSON: '', NIKUSHO_READER_KEY_FILE: '', NIKUSHO_COPY_TIMEZONE: '' };
     try {
       if (!bare.NIKUSHO_COPY_STORE) bare.NIKUSHO_COPY_STORE = JSON.parse(bare.NIKUSHO_STORES_JSON ?? readFileSync(bare.NIKUSHO_STORES_FILE, 'utf8')).stores?.[0]?.store ?? '';
       storesCfg = loadSourceConfig(bare).adapter;
     } catch { /* stores unreadable too: no store rows */ }
-    return createSourceUnavailableAdapter({ reason: 'source_config_invalid', stores: storesCfg.stores ?? [], schedules: storesCfg.schedules ?? [], ...(now ? { now } : {}) });
+    return createSourceUnavailableAdapter({ reason: code, stores: storesCfg.stores ?? [], schedules: storesCfg.schedules ?? [], ...(now ? { now } : {}) });
+  };
+  // Client condition (2026-10-19): the reader key is used by the PRODUCTION Vercel deployment only. A Preview or Development
+  // deployment never parses the key or reads the client's files, even if the variables were set for it by mistake.
+  if (!readers && e.VERCEL_ENV && e.VERCEL_ENV !== 'production') {
+    log('[source] live entry NOT CONNECTED - not the production deployment (VERCEL_ENV); source variables are ignored');
+    return unavailable('not_production_deployment');
+  }
+  let built;
+  try {
+    built = readers ?? createLiveReaders(e, { getAccessToken, timeoutMs });
+  } catch (err) {
+    if (!(err instanceof SourceConfigError)) throw err;
+    log(`[source] live entry NOT CONNECTED - source configuration: ${err.message}`);
+    return unavailable('source_config_invalid');
   }
   const { cfg } = built;
   if (requested !== 'copy') {

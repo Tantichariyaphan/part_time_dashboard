@@ -33,7 +33,10 @@ test('SCREEN-2 runs past their time have their own label, different from 時刻�
 test('SCREEN-3 未回答 and 回答未確認 have different labels and filters', () => {
   assert.notEqual(S.qstate.waiting, S.qstate.candidate);
   assert.notEqual(S.questions.filters.waiting, S.questions.filters.candidate);
-  assert.equal(S.all.waiting, '未回答');
+  assert.equal(S.all.waiting, '未回答（候補なし）');
+  // client 2026-10-18: "no candidate found" must not read as a confirmed 未回答
+  for (const label of [S.qstate.waiting, S.all.waiting, S.questions.filters.waiting]) assert.match(label, /候補なし/);
+  assert.match(S.questions.waitingNote, /確定したものではありません/);
 });
 
 // Fix B with every question state at once: each question is in exactly one group, candidates are never confirmed.
@@ -67,4 +70,37 @@ test('SCREEN-4 未回答 / 回答未確認 / 回答あり / クローズ: each q
   assert.equal(rr.numerator, 2, 'confirmed answers only (answered + acked)');
   assert.equal(rr.denominator, 6, 'every question sent');
   assert.equal(rr.candidateCount, 2, 'candidates reported separately');
+});
+
+// client 2026-10-18: no internal id (message_id / run_id / send_id / question_id) in the 「詳細」 panels of the normal screen either
+test('SCREEN-5 detail panels print no internal ids', () => {
+  for (const k of ['messageId', 'questionId', 'runId', 'sendId']) assert.equal(S.detail[k], undefined, `S.detail.${k} label removed`);
+  for (const f of ['messages.js', 'today.js', 'failures.js', 'questions.js', 'allStores.js', 'machines.js', 'periods.js']) {
+    const code = page(f).split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    // an id may appear only as a link target, an element id / key, or an API parameter - never inside printed text
+    for (const m of code.matchAll(/\$\{[^}]*\b(message_id|run_id|send_id|question_id)\b[^}]*\}/g)) {
+      const before = code.slice(Math.max(0, m.index - 30), m.index);
+      assert.match(before, /id: `|key = `|href|`[mqf]-|`[mqf]:/, `${f}: ${m[0]} printed as text`);
+    }
+    assert.doesNotMatch(code, /\[S\.detail\.\w+, [^\]]*\.(message_id|run_id|send_id)\]/, `${f}: id in a key/value row`);
+  }
+});
+
+// client 2026-10-18: a question sent while question tracking is incomplete is marked, and its 未回答 is not presented as concluded
+test('SCREEN-6 questions in the incomplete tracking period are marked on ④', async () => {
+  const { mockContext } = await import('./helpers.js');
+  const vm = await import('../src/viewmodels/pages.js');
+  const q = (id, sent) => ({ store: 'STORE_A', question_id: `SYN-${id}`, run_id: '', send_id: '', sent_at: sent, group: 'MEAT', who: 'Staff',
+    question_text: 'q', state: 'waiting', closed_reason: '', closed_at: '', answers_json: '[]', updated_at: sent });
+  const ctx = mockContext({ mutate: (raw) => { raw.questions.rows = [q('before', '2026-10-02T13:05:00+07:00'), q('after', '2026-10-06T10:00:00+07:00')]; } });
+  ctx.limits = { ...(ctx.limits ?? {}), questionsIncompleteFrom: '2026-10-05T23:36:00+07:00' };
+  const items = vm.questions(ctx, 'STORE_A').items;
+  assert.equal(items.find((i) => i.question_id === 'SYN-before').inIncompletePeriod, false);
+  assert.equal(items.find((i) => i.question_id === 'SYN-after').inIncompletePeriod, true);
+  const ctx0 = mockContext({ mutate: (raw) => { raw.questions.rows = [q('after', '2026-10-06T10:00:00+07:00')]; } });
+  ctx0.limits = {};
+  assert.equal(vm.questions(ctx0, 'STORE_A').items[0].inIncompletePeriod, false, 'no known gap -> no mark');
+  const code = page('questions.js');
+  assert.match(code, /q\.inIncompletePeriod && StatusBadge/);
+  assert.match(code, /S\.questions\.waitingNote/);
 });

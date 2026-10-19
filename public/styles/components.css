@@ -7,6 +7,7 @@
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .card-head a { text-decoration: none; }
 .card-head .sub { font-size: 12.5px; color: var(--ink-3); }
+.card-head .badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 55%; }
 .stack { display: grid; gap: var(--gap); }
 .grid-2 { display: grid; gap: var(--gap); }
 

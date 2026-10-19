@@ -86,7 +86,7 @@ export const S = {
     ['tone-wait', '実行中・時刻前'], ['tone-await', '結果待ち（時刻経過）'], ['tone-unknown', '結果確認不可'], ['tone-blocked', '停止'], ['tone-missing', '未実行・未確認'], ['tone-neutral', '状態未判定'],
   ],
   qstate: {
-    waiting: '未回答', candidate: '関連の可能性のある回答あり（未確認）', acked: '回答あり（未完了）', answered: '回答完了',
+    waiting: '未回答（候補なし）', candidate: '関連の可能性のある回答あり（未確認）', acked: '回答あり（未完了）', answered: '回答完了',
     closed: 'クローズ', unknown: '未確認',
   },
   closedReason: { answered: '回答済み', owner: 'オーナー判断', no_reply: '回答なしで終了' },
@@ -106,7 +106,7 @@ export const S = {
     toMessage: '③で見る', toQuestion: '④で見る', toMachines: '⑥稼働機', details: '詳細', hide: '閉じる',
   },
   detail: {
-    messageId: 'message_id', questionId: 'question_id', runId: 'run_id', sendId: 'send_id', kind: '種別', handling: '対応',
+    run: '巡回', reply: (i) => `返信 ${i}`, kind: '種別', handling: '対応', // internal ids are never shown on the normal screen (client 2026-10-14, 2026-10-18)
     posted: '投稿', received: '受信', evidence: '証跡', updated: '更新', sendOfQuestion: '質問の送信', sendNotFound: '送信記録が見つかりません',
     sends: '送信（LINE受付）', none: '—', asStored: '記録の値をそのまま表示',
   },
@@ -119,7 +119,7 @@ export const S = {
   cancelNote: '',
   // pages
   all: {
-    patrol: '巡回', daily: '日次', questions: '質問', waiting: '未回答', candidate: (n) => `回答未確認 ${n}件`, messages: '本日のメッセージ', botReplies: 'Bot返信',
+    patrol: '巡回', daily: '日次', questions: '質問', waiting: '未回答（候補なし）', candidate: (n) => `回答未確認 ${n}件`, messages: '本日のメッセージ', botReplies: 'Bot返信',
     machine: '稼働機', lightCheck: '簡易チェック', unit: '件',
   },
   today: {
@@ -128,7 +128,10 @@ export const S = {
   },
   messages: { total: 'メッセージ数', bot: 'Bot返信', group: 'グループ', replied: 'Bot返信済み', problem: '失敗・未確認', after: (m) => `${m}分後`, minutesWord: '分' },
   questions: {
-    filters: { all: 'すべて', waiting: '未回答', candidate: '回答未確認', answered: '回答あり', closed: 'クローズ' },
+    filters: { all: 'すべて', waiting: '未回答（候補なし）', candidate: '回答未確認', answered: '回答あり', closed: 'クローズ' },
+    waitingNote: '未回答（候補なし）は、記録の中に関連しそうな回答が見つからない質問です。回答がなかったことを確定したものではありません。',
+    inIncomplete: '記録不完全期間',
+    inIncompleteNote: '回答追跡の記録が不完全な期間に送信された質問です。回答の有無は確定できません。',
     wait: (h) => `${h}時間 待ち`, candidateNote: '現在の記録では回答の確定はできません（候補止まり）',
   },
   failures: { missing: '欠落', blocked: '停止', late: '遅延', unknown: '未確認', days: (d) => `直近${d}日`, sends: '送信の失敗・結果未確認', none: '該当はありません', notConnected: '未接続の店舗（対象外）',

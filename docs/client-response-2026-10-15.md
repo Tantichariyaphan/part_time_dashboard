@@ -1,19 +1,37 @@
 # NIKUSHO dashboard: PIATEC response to the 10/13 direction (items 1–6)
 
-From: PIATEC. To: the client, via Iida-san. Date: 2026-10-15. All times are Bangkok time.
-Items marked **[PIATEC to fill]** are completed by PIATEC management before sending. PIATEC does not state prices or commitments
-on cost in this document until management has set them.
+From: PIATEC. To: the client, via Iida-san. Date: 2026-10-19 (updated after Maru-san's messages of 10/14, 10/15 and 10/18; replies in §10 and §11). All times are Bangkok time.
+Amounts are given in the quotation; this document gives the scope and the monthly estimate. Items marked **[management to confirm]**
+are confirmed by PIATEC management before sending.
 
 ## 0. Summary
 
 | # | Item | Status | What we send | When |
 |---|---|---|---|---|
 | 1 | Connection, 7 live pages, 7-day reconciliation | ready | verification report with screenshots, live and test results separated | 10/15 |
-| 2 | Auto-refresh and outage detection | tests built; first run on 10/14 | test design, results, list of the cooperation we need (§2.4) | first results 10/15; 3-day timing 10/16 |
-| 3 | Production environment | waiting for your decision | facts for the interim Vercel decision (§3) | 10/15 |
+| 2 | Auto-refresh and outage detection | tests built; first run on 10/14 | test design, results, list of the cooperation we need (§2.4) | 3-day timing done (10/15–10/18, §2.2); outage drill in real time to follow |
+| 3 | Production environment | until 11/12 on PIATEC's Vercel, infrastructure paid by PIATEC; move to the final environment after 11/12 (your messages of 10/15). Your OK to place the reader key on Vercel is still needed (D-01) | §3, §8; migration plan | §3: 10/16; plan: 11/6 |
 | 4 | Prototype update | approved by you; redeploy on 10/14 | URL and verification results (§4) | 10/15 |
 | 5 | Open data issues | rows and criteria shared for your cross-check | §5 + row lists | 10/15 |
 | 6 | Single issue list, 10/15 feature list | this document | §6, §7 | 10/15 |
+| 10/18 | Maru-san's points (scope table, cost, hosted-URL checks, TV9, 20 minutes, questions, §7) | screen fixes of 10/18 implemented and tested on test data; §7 updated to 10/19; §8 scope table | §7, §8, §11 | 10/19 |
+| 10/14 | Maru-san's points (screen fixes, test evidence, run-status inputs) | 3 screen fixes implemented, tested on test data and checked on live data (10/15) | §10 | 10/15 |
+
+### 0.1 The 10/15 milestone (REQ §4: "first version complete: pages ②–⑦ for Bangkok, installed, connected, automatic update working")
+
+| Part of the milestone | Status on 10/15 | Where |
+|---|---|---|
+| Pages ②–⑦ for Bangkok | **done**: all pages show live data (and ① shows Bangkok) | verification report A2 |
+| Connected to live data | **done on PIATEC's development PC only** (read-only reader account). Not on a hosted URL: live data on Vercel is not approved (your direction of 10/13) | verification report A1; §3 |
+| Installed in your environment | **not done**. Agreed 10/15: until 11/12 the dashboard runs on PIATEC's Vercel; the move to your final environment follows after 11/12. Live data on Vercel starts once you confirm the key placement (D-01) | §3, §6.2 |
+| Automatic update within 10 minutes | **working on the PC** (server reads the copy at most once a minute; open pages refresh every 60 s). Measured on 4 consecutive business days, 10/15–10/18 (TV9): new rows reach the screen in **≤ 7.3 minutes** | §2 |
+| Stop shown within 20 minutes | banner logic **tested on a test connection**; real-time run 10/16. The notice to Takatsuji-san is **not built** (D-04) | §2, §7.2 |
+| Page ① all stores, store comparison | target **10/25** (Nagoya: Phase 2) | §5.4 |
+
+**The 10/15 first version is therefore not complete as REQ §4 defines it**: it runs on live data on our PC, but it is not installed in
+your environment and two measurements are still running. This document does not change the agreed schedule. §7.2 gives, for each
+open item, the date we need your input by and the date we can complete it, all before the final acceptance on 10/25. Please tell us
+how you want the 10/15 milestone to be treated.
 
 ---
 
@@ -29,11 +47,11 @@ Live screens are captured on PIATEC's development PC with read-only access. The 
 
 | Stage | How | Data |
 |---|---|---|
-| Source sheet → copy | `diag:timing`: time written in each new row (`日時`) → the copy's read time (`meta.last_read_at`) → first time our reader sees the row | LIVE, read-only, 60 min a day on 10/14, 10/15, 10/16. Production polling is not touched |
+| Source sheet → copy | `diag:timing`: time written in each new row (`日時`) → the copy's read time (`meta.last_read_at`) → first time our reader sees the row | LIVE, read-only, 60 min windows on 10/15, 10/16, 10/17 and 10/18. Production polling is not touched |
 | Copy → screen | the same run, plus the dashboard's fixed intervals: the server reads the copy at most once a minute; an open page refreshes every 60 s | LIVE |
 | Outage → "更新停止" on screen, and recovery | `outage-drill` on a **test connection**: a synthetic copy (Data Contract v1 columns, invented rows) behind a test Sheets API, read by the dashboard's real code. Four cases: copy stops updating; access removed (403); Google API does not answer; a required column disappears | TEST only. No client file is touched |
 
-### 2.2 Results so far (logic check with a simulated clock; real-time runs on 10/14)
+### 2.2 Results so far (logic check with a simulated clock; real-time run on 10/16)
 
 | Case | Screen shows 更新停止 | Back to normal after restore |
 |---|---|---|
@@ -42,12 +60,40 @@ Live screens are captured on PIATEC's development PC with read-only access. The 
 | Google API does not answer | ≤ 1 min (each request is cut off after 10 s) | ≤ 1 min |
 | Required column missing | ≤ 1 min | ≤ 1 min |
 
-Real-time results replace this table in the report of 10/15 (outage) and 10/16 (3 days of timing).
+The real-time outage run replaces this table when it is done. Timing results on live data are below.
 
 **Live timing sample (2026-10-13 17:33–17:52, read-only, 20 reads):** the copy was refreshed every 5 minutes (3 intervals, all
 5 min); the oldest copy data seen was 4.9 minutes old; the dashboard always read the same copy version as the probe. No new message
 arrived during the sample, so "message time → screen" is **not measured yet**; it will be measured in a busier hour. The banner showed
 更新停止 throughout because of the copy's `warning` status (T-12), not because the copy stopped.
+
+**Live timing on 4 consecutive business days, 10/15–10/18 (TV9)**, read-only, one read per minute, on PIATEC's PC. A business day starts at
+05:00, so the window of 10/18 00:23 belongs to business day 10/17.
+
+| Business day | Window | Reads | New rows: time in the row → visible to our reader | Copy refresh | Banner |
+|---|---|---|---|---|---|
+| 10/15 | 12:47–13:47 | 60 | `ログ` 9 rows: 0.5–5.1 min; `心拍` 1: 4.6 min | every 5 min | normal 60 / 60 |
+| 10/16 | 11:41–12:40 | 30 | `ログ` 15 rows: 0.6–2.3 min; `心拍` 1: 5.1 min. **4 more rows (`ログ` #23474–#23477) arrived while our PC was asleep (12:20–12:39); their delay was not measured** | every 5 min while awake | normal 30 / 30 |
+| 10/17 | 10/18 00:23–01:23 | 60 | `送信ログ` 3 rows: 0.3–5.3 min | every 5 min | normal 60 / 60 |
+| 10/18 | 12:13–13:13, 15:49–16:48, 17:12–18:12 | 180 | `ログ` 8 rows: 1.0–4.5 min; `心拍` 3: 4.2–4.5 min | every 5 min | normal 180 / 180 |
+
+**Measured:** every measured row was visible to our reader account within **5.3 minutes** (maximum). **Not measured:** the step from
+our reader to a browser. **7.3 minutes is an upper-bound estimate**, not a measurement: 5.3 minutes plus the dashboard's own read interval
+(≤ 1 min) and the page refresh (≤ 1 min). "Time in the row" is the event time written in the row (the Original Records are not visible
+to us). The banner was normal in every read. The 10/13 sample above was taken before the `warning` fix.
+
+**Rows excluded (10/16):** our PC was asleep from 12:20 to 12:39, so the probe saw these rows only on waking. Their real delay is
+unknown; they are counted neither as within nor as over 10 minutes.
+
+| Row (`ログ`) | Time in the row (approx.) | First seen by the probe | Shown by the probe as |
+|---|---|---|---|
+| #23474 | 12:21 | 12:39:14 | 17.7 min |
+| #23475 | 12:22 | 12:39:14 | 17.1 min |
+| #23476 | 12:24 | 12:39:14 | 14.9 min |
+| #23477 | 12:29 | 12:39:14 | 9.5 min |
+
+**Final check (still to do):** a measured run from a new row to a browser on the hosted URL, with the browser signed in, after you
+approve the reader key on Vercel (§7.3). PIATEC's self-assessment; you judge TV9.
 
 ### 2.3 Finding: the 20-minute rule leaves no margin
 
@@ -70,15 +116,17 @@ No other cooperation is needed. In particular, we do not need you to stop your C
 ## 3. Production environment: facts for your decision
 
 We treat the polling machine and the dashboard hosting as separate. None of our tests depend on Takatsuji-san's machine migration.
-Until you approve, no key is placed on Vercel and the prototype stays unconnected.
+Agreed on 10/15: until 11/12 the dashboard runs on PIATEC's Vercel and PIATEC pays the Vercel and infrastructure costs; PIATEC moves it to
+the final environment after 11/12. Until you confirm in writing that the reader key may be placed on Vercel (D-01), no key is placed there
+and the Vercel URL stays unconnected.
 
 | Your question | Answer |
 |---|---|
-| **Cost and existing quote** | This row applies only to interim use on PIATEC's Vercel; the final environment can be any Node.js host you choose (D-02), and without the interim period there is no Vercel cost. Vercel's free Hobby plan is for non-commercial personal use only, so client work needs the Pro plan: USD 20 per month per member who deploys (Vercel's list price). Viewers need no Vercel account. Covered by the existing quote: **[PIATEC to fill]**. Interim cost and who bears it: **[PIATEC to fill]** |
-| **Who can view** | Google sign-in. Only addresses on a server-side allowlist receive data; any other account gets no data. Preview URLs are refused. A person is removed by deleting the address and redeploying; sessions end after 60 minutes idle. Proposed allowlist: **[addresses you approve]** |
+| **Cost and existing quote** | **Monthly infrastructure until 11/12, paid by PIATEC:** Vercel Pro USD 20 per month (one member who deploys; the free Hobby plan is for non-commercial use only) + the dashboard database (managed PostgreSQL, about USD 25 per month) = **about USD 45 per month** at list prices, excluding tax. Viewers need no Vercel account. The monthly estimate is also in the quotation; who bears it until 11/12 is set out in §8. **Covered by the existing quote (REQ §2):** connection processing; the dashboard database (creation, import from the copy, rebuild after deletion, TV7); auto-refresh and stop detection; installation and configuration in the final environment. **Not in the existing quote** (amounts in the quotation): the monthly infrastructure above; moving from the interim Vercel to the final environment (about 0.5–1 person-day); database changes when the copy's shape changes after acceptance (per change, see §8) |
+| **Who can view** | Google sign-in. Only addresses on a server-side allowlist receive data; any other account gets no data. Preview URLs are refused. A person is removed by deleting the address and redeploying; sessions end after 60 minutes idle. Allowlist: please send us the Google addresses that may view the dashboard (D-05); we add only the addresses you send |
 | **Service account key** | Stored as a Vercel environment variable marked *Sensitive*: after saving, its value cannot be displayed in the Vercel dashboard or CLI. Can change or delete it (not read it): Vercel project members **[PIATEC to fill: names]**. Can create or revoke keys: owners of the Google Cloud project that holds the account **[PIATEC to fill: project owner]**. Today a copy exists only on PIATEC's development PC, for the local tests. The account is read-only (`spreadsheets.readonly`) and has view access to exactly two files. Revoking the key, or removing the share, stops access immediately |
-| **Data and logs** | Data: no database, no files written. Each read is held in server memory for at most about 1 minute and disappears when the instance stops. Responses are sent over HTTPS with `no-store` (not cached). Logs: our code logs status codes and variable names only, never message text, names, IDs or key values. Vercel keeps request logs (time, path, status, IP address, browser) for 1 day on Pro, then deletes them. Server region can be set to Singapore or Tokyo. Deletion at the end: delete the environment variables and the Vercel project, revoke the key, remove the reader account's share |
-| **Migration to the final environment** | The dashboard is a plain Node.js 22 server; the same code runs outside Vercel. Steps: (1) you prepare the environment; (2) PIATEC deploys and configures; (3) a new key is issued in your Google Cloud (or the account is transferred) and you share the two files with it; (4) PIATEC verifies; (5) PIATEC revokes the old key and deletes the Vercel project. Owner: PIATEC for 2, 4, 5; your side for 1 and the sharing in 3. Cost: **[PIATEC to fill]** |
+| **Data and logs** | Data: until now no database and no files written; each read is held in server memory for at most about 1 minute. From the next version (§7.2, 10/22) the dashboard database holds the rows imported from the copy; only the dashboard server can read or write it, and it can be deleted and rebuilt from the copy at any time. Responses are sent over HTTPS with `no-store` (not cached). Logs: our code logs status codes and variable names only, never message text, names, IDs or key values. Vercel keeps request logs (time, path, status, IP address, browser) for 1 day on Pro, then deletes them. Server region can be set to Singapore or Tokyo. Deletion at the end: delete the environment variables, the database and the Vercel project, revoke the key, remove the reader account's share |
+| **Move to the final environment** | After 11/12, by PIATEC (your message of 10/15). The dashboard is a plain Node.js 22 server; the same code runs outside Vercel. Outline: (1) you prepare the environment; (2) PIATEC deploys, configures and moves the database; (3) a new key is issued in your Google Cloud (or the account is transferred) and you share the two files with it; (4) PIATEC verifies; (5) PIATEC revokes the old key and deletes the Vercel project and the interim database. **The procedure, schedule and what we need from you will be sent by 11/6 for your decision.** Cost: about 0.5–1 person-day (amount in the quotation); setup beyond deployment and configuration depends on the environment you choose (§8) |
 
 ## 4. Prototype update
 
@@ -208,15 +256,15 @@ Phase 2. Kept separate from all Bangkok tests. ① shows Nagoya as 未接続 and
 | T-09 | Format of masked lines in owner reports | Takatsuji-san | open |
 | T-10 | Days with incomplete question records after 10/5: how to mark them | Takatsuji-san | open |
 | T-11 | Start point of the 20 minutes in TV21 (§2.3) | Takatsuji-san | open |
-| T-12 | **Urgent:** since the afternoon of 10/13 the copy's `meta` row for `ログ` has `status = warning`, `detail` 「元の長いIDが数値型（末尾復元不可）: 行 …」. The agreed values are ok / stale / error, so the dashboard shows the red 更新停止 banner for messages although the copy is current (read every 5 min). Option A: treat `warning` as "data current, with a notice" (no red banner; the rows in `detail` flagged). Option B: keep treating it as stopped. We recommend A. Which do you want? | Takatsuji-san | open |
+| T-12 | The copy's `meta` row for `ログ` had `status = warning` (outside the agreed values), so the dashboard showed 更新停止 for messages although the copy was current. **Your side will change the status back to the agreed values and keep the ID problem as a warning (10/14).** No change on our side: the dashboard keeps treating any value other than ok / stale / error as stopped, and the banner returns to normal once the status is `ok`. | Takatsuji-san | **fixed by you.** Confirmed 10/15 16:06 (`check:sources`): `ログ` and every other copy tab status `ok`; the 更新停止 banner no longer appears (① at 00:47) |
 
 ### 6.2 Decisions on cost, permissions or business: for you
 
 | ID | Decision | Type | Status |
 |---|---|---|---|
-| D-01 | Interim live data on Vercel (§3) | cost, permission | waiting for your decision |
-| D-02 | Final environment: where, who prepares it, cost (§3) | cost, business | open |
-| D-03 | Screen-side storage: location (your Google account / folder) and a separate writer account with edit access to that one file only | permission | open |
+| D-01 | Interim live data on Vercel (§3) | cost, permission | **decided 10/15:** PIATEC's Vercel until 11/12, infrastructure until 11/12 as in §8. **Open:** your written OK to place the reader key on Vercel (not approved in your message of 10/18) |
+| D-02 | Final environment: where, who prepares it, cost (§3) | cost, business | **decided 10/15:** PIATEC moves it after 11/12; plan by 11/6. **Open:** where (your decision on the plan) |
+| D-03 | Screen-side storage | permission | **decided 10/15:** PIATEC creates and changes the dashboard database and imports from the copy. You own the shape and content of the copy (View-only Copy, heartbeat) and, before changing its shape, tell us in advance and send sample data |
 | D-04 | Stop/recovery notices: channel and recipients | business | open |
 | D-05 | Who may view the dashboard (allowlist) | permission | open |
 
@@ -224,49 +272,101 @@ Phase 2. Kept separate from all Bangkok tests. ① shows Nagoya as 未接続 and
 
 Reader account created and both files shared (10/13); Nagoya = Phase 2 (10/13); prototype update approved (10/13).
 
-## 7. Features verifiable on 10/15 and features not complete
+## 7. Status on 10/19, for the 10/25 acceptance
 
-Expected dates for "not complete" items are PIATEC estimates, counted from the day the prerequisite is met.
-**[PIATEC to confirm the estimates]**
+The 10/15 first version (REQ §4) is reported in §0.1 as it stood on 10/15; this section is the status on **10/19** and is kept apart
+from it. Every live check so far ran on **PIATEC's development PC**; the hosted URL is not connected, because the reader key is not
+placed on Vercel until you approve it (D-01). All dates are 2026, Bangkok time. "We need it by" is the date we ask for your decision or
+answer; if it arrives later, the completion date moves by the same number of business days and we tell you at once if an item can no
+longer be checked before 10/25. 10/23 (Fri) is a public holiday in Thailand.
 
-### 7.1 Verifiable on 10/15
+### 7.1 Done on 10/19
 
-| Feature | Evidence | Owner |
-|---|---|---|
-| Read-only connection to both sheets | LIVE | PIATEC |
-| All 7 pages with live data (PIATEC PC) | LIVE | PIATEC |
-| 7-day reconciliation, source → dashboard data → screen | LIVE | PIATEC |
-| Damaged message IDs flagged, never guessed | LIVE | PIATEC |
-| Prototype shows 未接続, never mock data; demo kept separate | deployed prototype | PIATEC |
-| Outage detection and recovery on a test connection (4 cases) | TEST | PIATEC |
-| Auto-refresh timing, day 1 of 3 | LIVE | PIATEC |
-| Display-only tests TV5, TV10, TV11, TV13, TV14 | TEST | PIATEC |
-
-### 7.2 Not complete on 10/15
-
-| Feature | Owner | Prerequisite | Expected completion |
+| Item | Done | Evidence | Where |
 |---|---|---|---|
-| Auto-refresh timing over 3 days (TV9) | PIATEC | none | 10/16 |
-| Run status on ② ⑤ ⑦ (patrol / daily rates) | PIATEC | your answers to T-01 | **[+2 business days]** |
-| Stop/recovery notice to Takatsuji-san (TV19, TV21) | PIATEC | D-04, T-11 | **[+3 business days]** |
-| Screen-side storage and rebuild (TV1 registry, TV7, TV12) | PIATEC | D-03 | **[+5 business days]** |
-| Monitoring of the dashboard's own process (TV25) | PIATEC | D-02 (where it runs), D-04 | **[after D-02]** |
-| Phones, real accounts, page speed on real volume (TV3, TV4, TV15, TV16, TV17) | PIATEC | D-01 or D-02 (a hosted URL) | **[+2 business days after hosting]** |
-| Installation and recovery demo (TV18) | PIATEC (dashboard side); you (copy side) | D-02 | **[after D-02]** |
-| Question count explained (TV20) | you, with PIATEC | T-02, T-10 | after your cross-check |
-| Message ID mapping for the 11 rows | you | T-03 | after your confirmation |
-| Nagoya (TV6 Nagoya part, TV16 Nagoya) | — | Phase 2 | Phase 2 |
+| Read-only connection to both sheets | 10/14 | LIVE | PC |
+| All 7 pages with live data | 10/14 | LIVE | PC |
+| 7-day reconciliation, source → dashboard data → screen | 10/14 | LIVE | PC |
+| Damaged message IDs flagged, never guessed | 10/14 | LIVE | PC |
+| Prototype shows 未接続, never mock data; demo kept separate | 10/14 | deployed prototype | hosted URL, no live data |
+| Outage detection and recovery, 4 cases, simulated clock | 10/14 | TEST | test connection |
+| Display-only tests TV5, TV10, TV11, TV13, TV14 | 10/14 | TEST | — |
+| Screen fixes of 10/14 (結果待ち, 未回答 / 回答未確認, no question ID on ④) | 10/14; live 10/15 | TEST, LIVE | PC |
+| Copy `status` corrected by you; banner normal | 10/15 | LIVE | PC |
+| New rows visible to our reader within 5.3 min, 4 consecutive business days (TV9, reader level; §2.2) | 10/15–10/18 | LIVE | PC |
+| Screen fixes of 10/18: no internal IDs in the 「詳細」 panels (③ ② ⑤); 「未回答（候補なし）」 with an explanation; questions in the incomplete tracking period marked 「記録不完全期間」 | 10/19 | TEST (229 tests) | live check on the PC: 10/20 |
 
-## 8. Responsibilities and scope
+### 7.2 Not done on 10/19
 
-PIATEC's responsibility, as requested: connection processing, screen-side storage, auto-refresh, and connection-failure monitoring and
-recovery checks. Items that may be out of scope are listed here **before** any work starts:
+| Item | Owner | Prerequisite | We need it by | Completion date |
+|---|---|---|---|---|
+| Stop detection within 20 minutes, consistent with the normal-display rule: start point, threshold and real-time results (TV19, TV21; §2.3) | PIATEC proposes; you decide | none for the proposal; your decision on the rule | 10/21 | proposal with real-time results 10/20; implemented 10/22 |
+| Stop/recovery notice to Takatsuji-san and recovery check (TV19, TV21) | PIATEC | D-04 | 10/19 | 10/22 |
+| Run status on ② ⑤ ⑦ (patrol / daily rates) | PIATEC | your judgment rules and the inputs in §10.4 (T-01) | 10/19 | 10/21 |
+| Dashboard database: creation, import from the copy, rebuild (TV1 registry, TV7, TV12) | PIATEC | D-03 (decided 10/15) | received | 10/22 |
+| Monitoring of the dashboard's own process (TV25) | PIATEC | D-01, D-04 | 10/19 | 10/22 |
+| Live check of the 10/18 screen fixes | PIATEC | none | — | 10/20 |
+| Question count explained (TV20) | you, with PIATEC | T-02, T-10 | 10/20 | 10/21 |
+| Message ID mapping for the 36 rows in your `detail` | you | T-03 | 10/20 | 10/21 |
 
-| Item | Why it may be out of scope | Additional cost |
+### 7.3 Checks on the hosted URL, after you approve the reader key (D-01) and the viewers (D-05)
+
+| Check | TV | Completion |
 |---|---|---|
-| Interim hosting fees on Vercel | platform cost not in the development quote **[PIATEC to confirm]** | **[PIATEC to fill]** |
-| Setting up the final environment beyond deploy and configuration | depends on what D-02 requires | **[PIATEC to fill after D-02]** |
-| Nagoya connection | Phase 2 | Phase 2 quote |
+| Sign-in with the 2 real accounts; a non-allowlisted account and a removed account get no data | TV3, TV15 | approval + 1 business day |
+| Phones, portrait: no horizontal scroll, page within 3 s on real volume; Japan and Thai time | TV4, TV16, TV17 | approval + 2 business days |
+| All 7 pages on the hosted URL against the reconciliation | TV1, TV8, TV20 | approval + 2 business days |
+| Measured timing from a new row to a signed-in browser on the hosted URL | TV9 (final) | approval + 2 business days |
+| Stop shown and recovered on the hosted URL (test copy), notice to Takatsuji-san | TV19, TV21 | approval + 2 business days, after D-04 and the §2.3 decision |
+| Installation and recovery demo, with your copy owner | TV18 | approval + 2 business days |
+| Monitoring of the dashboard's own process | TV25 | approval + 2 business days |
+
+With approval on 10/20, every check above is complete by **10/22**.
+
+### 7.4 After the acceptance
+
+| Item | Owner | Date |
+|---|---|---|
+| Plan for the move to the final environment (§3) | PIATEC | 11/6 |
+| Move to the final environment | PIATEC; you (environment, sharing) | after 11/12, on your decision on the plan |
+| Nagoya (TV6 Nagoya part, TV16 Nagoya) | — | Phase 2 |
+
+## 8. Scope against the existing quotation **[management to confirm]**
+
+Arranged as you proposed on 10/18. Amounts, unit prices and caps are in the quotation.
+
+| Work | Existing quotation | Separate quotation |
+|---|---|---|
+| Connection processing (View-only Copy, heartbeat) | ✓ | |
+| Dashboard database: creation, import from the copy, rebuild | ✓ | |
+| Auto-refresh | ✓ | |
+| Authentication and allowlist | ✓ | |
+| Stop detection, notice to Takatsuji-san, recovery check | ✓ | |
+| Monitoring, including the dashboard's own process | ✓ | |
+| Acceptance tests and correction of non-conformities | ✓ | |
+| Phone checks | ✓ | |
+| Demo | ✓ | |
+| Hand-over of procedures and source code | ✓ | |
+| Normal installation and configuration in the final environment | ✓ | |
+| Move from the interim Vercel to the final environment, only the work that does not overlap with normal installation: new key, moving the database, re-verification, revoking the old key, deleting the interim environment | | ✓ about 0.5–1 person-day (estimate; breakdown, unit price and cap in the quotation) |
+| Building a final environment beyond normal installation | | ✓ estimated once the environment is chosen (plan of 11/6) |
+| Data-structure changes beyond maintenance | | ✓ per change |
+| Nagoya, 2 stores (Phase 2) | | ✓ Phase 2 quotation |
+
+**Following changes on your side:**
+
+| Case | In the monthly fee | Separate cost |
+|---|---|---|
+| Investigating a stop or a wrong display | ✓ | |
+| Connection fixes while the copy keeps the agreed Data Contract (access, key, quota, timing) | ✓ | |
+| Recovery after a stop | ✓ | |
+| A change to the copy's shape that you notify (new or renamed column, new tab, new status value) | | ✓ estimated per change from your notice and sample data |
+| New screens or functions | | ✓ |
+
+**Defects in PIATEC's code** (the dashboard does not do what was agreed) are fixed at no cost and are not counted as change work.
+
+**Interim infrastructure (Vercel Pro + database, about USD 45 per month):** until 11/12 **[management to confirm: borne by PIATEC,
+with no later billing to you, as you prefer]**; from 11/13, quoted separately.
 
 ## 9. Automated tests: what was checked with live data and what with test data only
 
@@ -294,3 +394,66 @@ pairs each test area with the live check, if there is one.
 | Diagnostic scripts themselves | `diagnostics.test.js` | 8 | synthetic | The same scripts were run on live data (reconcile, heartbeat, timing) |
 | Build rules (no write route, no client data in tests, demo is anonymous) | `safety.test.js`, `sample-shape.test.js` | 13 | static code checks / synthetic | Not applicable |
 | **Total** | 19 files | **227** | **all test data** | |
+
+## 10. Replies to Maru-san's message of 10/14
+
+### 10.1 Screen fixes (implemented 10/14)
+
+| Point | What changed | Checked with | Live check |
+|---|---|---|---|
+| A run whose time has passed was shown as 「時刻前」 | Three separate states: before the scheduled time 「時刻前」; from the scheduled time to the deadline **「結果待ち（時刻経過）」**; after the deadline 「状態未判定」 / 「未確認（記録なし）」 as before. 結果待ち is never counted as a success, a failure or in any rate. On ① it has its own ring-shaped dot, and the legend lists 結果待ち and 状態未判定 separately. | automated tests incl. the exact boundaries (1 ms before / at the time and the deadline) and the daily run across midnight | **Checked on live data, 10/15 00:44** (②, business day 10/14): daily 00:35 = 結果待ち（時刻経過）; patrols 12:00 / 17:00 / 22:00 = 状態未判定; legend shows both separately — `F3_page2.png` |
+| 「回答待ち 30件」 mixed unconfirmed with unanswered | ① now shows **「未回答 N件」** with **「回答未確認 M件」** below it; ④ filters すべて / 未回答 / 回答未確認 / 回答あり / クローズ. Old rule: 回答待ち = no answer found + possibly related answer found. New rule: 未回答 = no possibly related answer found; 回答未確認 = a possibly related answer exists but is not confirmed. Each question is in exactly one group; a possibly related answer is never shown or counted as confirmed. | automated test with every state at once (none / one / several candidates, confirmed, acknowledged, closed) | **Checked on live data, 10/15 00:49:** ① 「未回答 1件」 / 「回答未確認 30件」; ④ すべて 31 = 未回答 1 + 回答未確認 30 + 回答あり 0 + クローズ 0. The previous 「回答待ち」 count would have been 31 (30 on 10/13 plus one question on 10/14 21:05). The one 未回答 question is 10/03 23:13 (MEAT). — `F1_page1.png`, `F2_page4.png` |
+| Internal ID (`R021-confirm-…`) on the normal screen | ④ no longer prints the question ID. It is kept only as a link target, so links from ② and ③ still open the right question. | automated test, and a search of all 7 rendered pages for a test ID: visible before the fix, not visible after | **Checked on live data, 10/15 00:49:** no question ID on ④ (both filters) — `F2_page4.png` |
+
+The run-status rules themselves are unchanged: run results stay 「状態未判定」 until your rules arrive (§10.4).
+Message, run and send IDs still appear inside the closed 「詳細」 panels on ③ and ⑤. **Should these be hidden as well?**
+
+### 10.2 Unconfirmed versus unanswered
+
+Answered. See §10.1 (second row).
+
+### 10.3 Automated tests: live data versus test data
+
+All 229 automated tests (227 after the 10/14 fixes, 219 before them) use test data only; none reads your files. The live checks were made
+separately, read-only. The table in §9 pairs each test area with its live check, if any.
+
+### 10.4 Inputs we need to judge run status
+
+To apply your judgment rules we need, for each scheduled patrol and the daily report:
+
+1. **The record that shows the run took place and finished** (since 10/7 the `ROUTE=fast-patrol` rows; before that the result rows at
+   +73 minutes), and what `ROUTE`, `was`, `AIOK` and `未分析(AI無)` mean in it (§5.1).
+2. **Whether questions were produced in that run, and how many**, and how a question or send is tied to the run (`slot`, `run_id`
+   or another column). Since 10/5 the 5-minute polling loop sends questions; we cannot tell which run they belong to.
+3. **The full list of `STOP=` codes and `owner=` values**, and which of them mean "stopped".
+4. **The deadlines**: minutes after the scheduled time for a patrol and for the daily report (provisional 90 / 60).
+5. **The record that proves the daily report was sent** (we currently look for an `OWNER` send within 60 minutes of 00:35).
+6. **Whether a run without any result row must be shown as 未実行** (missing) or stays 未確認.
+
+If your rules use a column that is not in the copy today, please add it to the copy (Data Contract) and tell us its name.
+
+### 10.5 Dates and the 10/15 list
+
+§7 has, for each open item, the owner, the prerequisite, the date we need the prerequisite by, and a concrete completion date
+before the final acceptance on 10/25 (updated to 10/19 after your message of 10/18, see §11).
+
+### 10.6 Cost and schedule
+
+Reflecting your messages of 10/15: the dashboard database is PIATEC's (D-03); PIATEC pays the Vercel and infrastructure costs until
+11/12 and the monthly estimate is in the quotation (§3, §8); the move to the final environment follows after 11/12, with the plan sent by
+11/6. We understand that this exchange does not approve any additional cost or change of schedule.
+
+## 11. Replies to Maru-san's message of 10/18
+
+| Your point | Our answer | Where |
+|---|---|---|
+| Scope against the existing quotation; changes included in the monthly fee vs separate; defects kept apart | table in the arrangement you proposed | §8 |
+| Interim infrastructure until 11/12 and later billing | **[management to confirm]**; from 11/13 quoted separately | §8 |
+| Move: breakdown, unit price, cap, no overlap with normal installation | in the quotation; 0.5–1 person-day is an estimate only, not a request for approval | §8 |
+| Plan of 11/6 | will include: environment options, owners, concrete schedule, how to roll back, completion tests, revoking the old key and deleting the old environment. The move is decided separately after the plan, after 11/12 | §7.4 |
+| 1. Hosted URL, real accounts, phones | all live checks so far ran on PIATEC's PC; the checks on the hosted URL and their dates are listed. We understand the key on Vercel is not approved by your message of 10/18 | §7.3 |
+| 2. TV9 | 5.3 min is measured (to our reader); 7.3 min is an upper-bound estimate; the 4 excluded rows are listed; the final measured run to a browser on the hosted URL is in §7.3 | §2.2, §7.3 |
+| 3. 20 minutes | not changed by moving the start point alone. We will propose a start point and threshold consistent with the normal-display rule, with real-time results, on 10/20, including the notice to Takatsuji-san and the recovery check | §2.3, §7.2 |
+| 4. Questions in the incomplete period; IDs in 「詳細」 | implemented 10/19 (test data): 「未回答（候補なし）」 with the explanation that no answer is not confirmed; questions sent from 10/05 23:36 marked 「記録不完全期間」; no internal IDs in any 「詳細」 panel. Live check 10/20 | §7.1 |
+| 5. §7 | updated to 10/19: done / not done / prerequisite / owner / concrete dates; the 10/15 first version (§0.1) and the 10/25 acceptance are kept apart | §7 |
+| T-01 to T-11 | understood: your CODE team and Takatsuji-san review them together. Items that need conditions from both sides are not treated as complete, or as an additional order, before agreement | §6.1 |

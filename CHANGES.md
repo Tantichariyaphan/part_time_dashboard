@@ -3,6 +3,27 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-19 — screen fixes requested by the client (Maru-san, 10/18)
+
+- **No internal ids in the 「詳細」 panels:** ③ message detail no longer prints `message_id`, `run_id` or `send_id`; it shows the
+  kind, handling, the patrol's time and each reply's send result. ② run detail no longer prints `run_id`, and a missing send record
+  is shown without its `send_id`. ⑤ detail no longer prints `run_id`. The ids remain only as link targets / element ids and in the
+  API JSON (for support). The labels `S.detail.messageId / questionId / runId / sendId` were removed.
+- **未回答 is not presented as concluded:** the `waiting` label is now 「未回答（候補なし）」 on ① and ④ (state, filter, card); ④
+  explains under the filters that it means no possibly related answer was found, not that no answer was given. A question sent
+  while the client's question tracking is known to be incomplete (Q-52, from 10/05 23:36) carries the badge 「記録不完全期間」 and the
+  note 「回答の有無は確定できません」 (view model: `inIncompletePeriod`). No count or state rule changed.
+- **Client conditions for the reader key on Vercel (2026-10-19):** a Preview or Development deployment (`VERCEL_ENV` ≠ production)
+  never parses the key or reads the client files, even if the variables were set for it by mistake; its live entry shows 未接続
+  (`not_production_deployment`). New `npm run check:access -- --url https://<production host> --preview https://<preview host>`:
+  pre-release check without an account (not signed in → 401 and no data on every resource; page and every script contain no key
+  material or source ids; preview → no data; write methods refused). Prints status codes and PASS / FAIL only.
+- Tests: SCREEN-3 updated (new label), SCREEN-5 (no id in any detail panel or key/value row, on all 7 page files), SCREEN-6
+  (incomplete-period mark, before / after the gap, no gap). LIVE-PREVIEW (no token request and no read on preview / development). The new tests fail on the previous code. 227 → 230,
+  synthetic data only.
+- Checked outside `npm test` (synthetic data): headless UI review, all 7 pages at 375 / 1280 px, no findings.
+- **Not verified on live data yet.**
+
 ## Unreleased — 2026-10-14 — screen fixes requested by the client (Maru-san, 10/14)
 
 - **Runs past their time:** a scheduled run whose time has passed is no longer shown as 「時刻前」. Before its time: 時刻前

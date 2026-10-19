@@ -20,14 +20,14 @@ Every result below is labelled with its evidence type, and the types are never m
 
 | Item | Result | Evidence |
 |---|---|---|
-| View-only Copy: state, tabs, row counts, contract check | CONNECTED (read 2026-10-14 00:41); `ログ` 7,626 / `送信ログ` 240 / `AI質問追跡` 30 / `心拍` 730 rows; contract findings 0; rounded `messageId` 0. Copy `meta`: `ログ` status **`warning`** (T-12), other tabs `ok`; copy refreshed every 5 min | `A1-2_page6-sources.png`, `A3-1_reconcile.png` |
+| View-only Copy: state, tabs, row counts, contract check | CONNECTED (read 2026-10-14 00:41); `ログ` 7,626 / `送信ログ` 240 / `AI質問追跡` 30 / `心拍` 730 rows; contract findings 0; rounded `messageId` 0. Copy `meta`: `ログ` status **`warning`** (T-12), other tabs `ok` (**10/15 16:06: all tabs `ok`** after the client's fix); copy refreshed every 5 min | `A1-2_page6-sources.png`, `A3-1_reconcile.png` |
 | Machine Heartbeat Sheet: state, tabs, row counts | CONNECTED (⑥, last read 2026-10-14 01:09); `beats` 1,484 / `alerts` 7 rows, both passed the contract check | `A1-2_page6-sources.png` |
 | The same two connections as the dashboard shows them (⑥ data source card) | both 接続中, last read 2026-10-14 01:09; copy tabs ログ 7,626 / 送信ログ 240 / AI質問追跡 30 / 心拍 730 rows, meta passed; Bot reply links: confirmed 25 / cannot identify 7 / unlinked 0 | `A1-2_page6-sources.png` |
 | Access is read-only | the reader account has view-only access and the `spreadsheets.readonly` scope; the dashboard has no write route (API answers 405) | design + `npm test` (TEST) |
 
 ### A2. Live data on all 7 pages
 
-Desktop browser on the laptop, live entry (`http://localhost:3000/`, not `/demo/`). **The red 更新停止 banner on the message pages is caused by the copy's `ログ` status `warning` (detail: 「元の長いIDが数値型（末尾復元不可）」, T-12); the copy itself is current (read every 5 minutes).** Each screenshot shows the URL bar and the
+Desktop browser on the laptop, live entry (`http://localhost:3000/`, not `/demo/`). **The red 更新停止 banner on the message pages is caused by the copy's `ログ` status `warning` (detail: 「元の長いIDが数値型（末尾復元不可）」, T-12); the copy itself is current (read every 5 minutes).** The client corrected the status; on 10/15 16:06 every copy tab reads `ok` and the banner is gone. Each screenshot shows the URL bar and the
 last-updated time. Staff names are masked before the images leave PIATEC (REQ §7-8, §7-12).
 
 | Page | What the screenshot shows | Known limits shown on screen (not defects of the capture) | File |
@@ -74,6 +74,22 @@ reconcile run, figure by figure. On ③ for 10/10, the page lists 223 messages a
 | Questions, 7 days | 1 | 1 | yes |
 | Bot replies, 7 days | 9 | 9 | yes |
 
+### A4. Source → screen within 10 minutes, consecutive days (TV9)
+
+`npm run diag:timing` (read-only), 60-minute windows on 4 consecutive business days, 10/15–10/18 (a business day starts at 05:00).
+
+| Business day | New rows measured | Row time → visible to our reader | Banner |
+|---|---|---|---|
+| 10/15 | `ログ` 9, `心拍` 1 | 0.5–5.1 min | normal |
+| 10/16 | `ログ` 15, `心拍` 1 (4 more rows arrived while the PC slept: not measured) | 0.6–5.1 min | normal |
+| 10/17 | `送信ログ` 3 | 0.3–5.3 min | normal |
+| 10/18 | `ログ` 8, `心拍` 3 | 1.0–4.5 min | normal |
+
+Measured maximum to our reader: **5.3 minutes**. To the screen, **≤ 7.3 minutes is an upper-bound estimate** (+ dashboard read interval ≤ 1 min
++ page refresh ≤ 1 min), not a measurement; the measured run to a browser on the hosted URL follows after the key is approved.
+The 4 rows of 10/16 seen only after the PC woke (`ログ` #23474–#23477) are excluded and listed in the response, §2.2.
+Evidence: terminal screenshots `T1`–`T6` (one per window). Measured on PIATEC's PC, not on a hosted URL.
+
 ---
 
 ## Part B — Verified with TEST data only
@@ -90,8 +106,7 @@ None of these used client data. They prove the screen logic, not the live system
 
 | Item | Why | Next step |
 |---|---|---|
-| Live data on a hosted URL (vercel.app or the client's environment) | not approved (client direction 10/13); hosting is a separate decision | client's decision on the interim/final environment |
+| Live data on a hosted URL (vercel.app or the client's environment) | not approved on 10/13; agreed 10/15: PIATEC's Vercel until 11/12, final environment after 11/12 | starts once the client confirms the reader key may be placed on Vercel (D-01) |
 | Phones, real accounts (TV3, TV4, TV15, TV16) | needs a hosted URL | after hosting |
-| Source → screen ≤ 10 min over 3 days (TV9) | one timing sample so far | `diag:timing` daily, 10/14 – 10/16 |
 | Run status (②⑤⑦ rates) | interpretation awaits client approval (Q-49) | client decision |
 | Notice to Takatsuji on a stop (TV19, TV21) | channel and contact not yet named (Q-02, Q-47) | client decision, then build |

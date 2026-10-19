@@ -36,7 +36,7 @@ export function view(env, ctx) {
             r.hasRow && h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': String(open), onclick: () => ctx.toggle(key) }, open ? S.link.hide : S.link.details),
             r.onTodayPage && h('a', { href: href.today(r.store) }, S.link.toToday),
             h('a', { href: href.messages(r.store, r.businessDay) }, S.link.toMessages)),
-          open && h('div', { class: 'detail' }, runValues(r), r.run_id && h('div', { class: 'small muted' }, `${S.detail.runId}：${r.run_id}`)));
+          open && h('div', { class: 'detail' }, runValues(r)));
       })) : EmptyState(d.runStatusUnconfirmed ? S.run.unconfirmed : S.failures.none)),
     Card({ title: S.failures.sends },
       d.unclassifiedSends > 0 && h('div', { class: 'small muted' }, S.failures.unclassifiedSends(d.unclassifiedSends)),

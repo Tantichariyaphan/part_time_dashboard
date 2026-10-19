@@ -105,6 +105,8 @@ function questionRow(q, now, ctx = null, store = null) {
     answersOk: a.ok,
     answers: a.answers.map(({ message_id, at, who, text, link }) => ({ message_id, at, who, text, link, businessDay: store ? dayOf(store, at) : null })),
     filterGroup: filterGroup(q),
+    // sent while the client's question tracking is known to be incomplete (Q-52): its state cannot be concluded (client 2026-10-18)
+    inIncompletePeriod: ctx ? (() => { const from = questionsIncompleteFromMs(ctx); const t = Date.parse(q.sent_at); return from != null && Number.isFinite(t) && t >= from; })() : false,
   };
 }
 

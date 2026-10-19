@@ -11,3 +11,9 @@ config/reader-key*.json
 docs/sample data_*/
 
 Claude outputs/
+
+# Extra safety nets (2026-10-19): private keys and downloaded credential files never enter Git or a deployment.
+*.pem
+*.p12
+*credentials*.json
+*service-account*.json
