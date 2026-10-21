@@ -44,6 +44,8 @@ export const COLUMNS = Object.freeze({
 export const OPTIONAL_COLUMNS = Object.freeze({
   messages: ['cancelled', 'id_damaged'],
   sends: ['replies_to_message'],
+  // per-route detail of a daily delivery judged from the client's 日次配送 records (rules 2026-10-21 §5); JSON, codes and times only
+  runs: ['routes_json'],
 });
 
 /** Columns that hold counts / numbers. Blank (null) means "not pulled"; 0 means zero (REQ §6). */

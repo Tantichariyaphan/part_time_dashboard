@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createCopyAdapter, notConnectedReader, SOURCE_STATE } from '../src/adapters/copy/copyAdapter.js';
 import { COPY_SOURCE_LIMITS, COPY_TAB, FORBIDDEN_FIELDS, HEARTBEAT_TAB } from '../src/contract/copyContract.js';
+import { EVIDENCE_TAB } from '../src/contract/evidenceContract.js';
 import { COLUMNS } from '../src/contract/columns.js';
 import { loadSourceConfig, SourceConfigError } from './source/config.js';
 import { createSheetsReader } from './source/sheetsReader.js';
@@ -41,7 +42,7 @@ export function createLiveReaders(env = process.env, { getAccessToken: injected,
     cfg,
     // Two separate readers, one per client file; the same reader account; ids only from server configuration.
     copyReader: createSheetsReader({
-      spreadsheetId: cfg.copySpreadsheetId, tabs: Object.values(COPY_TAB), requiredTabs: [COPY_TAB.meta], exactTabs: true,
+      spreadsheetId: cfg.copySpreadsheetId, tabs: [...Object.values(COPY_TAB), ...Object.values(EVIDENCE_TAB)], requiredTabs: [COPY_TAB.meta], exactTabs: true, // evidence tabs optional (rules 2026-10-21)
       refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, ...t,
     }),
     heartbeatReader: createSheetsReader({

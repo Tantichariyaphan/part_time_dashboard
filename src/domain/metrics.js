@@ -23,8 +23,11 @@ function median(nums) {
 }
 
 const rate = (num, den) => (den === 0 ? { state: 'none' } : { state: 'value', value: num / den, numerator: num, denominator: den });
+const kindRate = (inScope, unconfirmed, t) => (!inScope ? { state: 'none' } : unconfirmed || (t.den === 0 && t.notJudged > 0) ? { state: 'unconfirmed' } : rate(t.ok, t.den));
 
-export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, days, runStatusUnconfirmed = false, questionsIncompleteFromMs = null }) {
+export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, days, runStatusUnconfirmed = false, runOptions = null, questionsIncompleteFromMs = null }) {
+  const opts = runOptions ?? { statusUnconfirmed: runStatusUnconfirmed };
+  const unc = typeof opts.statusUnconfirmed === 'object' ? opts.statusUnconfirmed : { slot: !!opts.statusUnconfirmed, daily: !!opts.statusUnconfirmed };
   const scope = scopeOf(store);
   const dayList = recentDays(currentDay, days); // newest first
   const runs = real(data.runs, isDummyRun);
@@ -33,12 +36,13 @@ export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, d
   const sends = real(data.sends, isDummySend).filter((s) => s.store === store.store);
 
   // ---- runs
-  const tally = { slot: { ok: 0, den: 0 }, daily: { ok: 0, den: 0 }, missing: 0, blocked: 0, unknown: 0 };
+  const tally = { slot: { ok: 0, den: 0, notJudged: 0 }, daily: { ok: 0, den: 0, notJudged: 0 }, missing: 0, blocked: 0, unknown: 0 };
   let unconfirmedSchedule = false;
   for (const day of dayList) {
-    const { items, unconfirmedSchedule: u } = dayRuns({ store, schedules: data.schedules, runs, day, now, currentDay, statusUnconfirmed: runStatusUnconfirmed });
+    const { items, unconfirmedSchedule: u } = dayRuns({ store, schedules: data.schedules, runs, day, now, currentDay, ...opts });
     if (u.slot || u.daily) unconfirmedSchedule = true;
     for (const it of items) {
+      if (NOT_JUDGED.has(it.status) && tally[it.kind]) tally[it.kind].notJudged += 1;
       if (IN_PROGRESS.has(it.status) || NOT_JUDGED.has(it.status)) continue;
       const t = tally[it.kind];
       if (t) { t.den += 1; if (SUCCESS.has(it.status)) t.ok += 1; }
@@ -95,9 +99,11 @@ export function periodMetrics({ store, data, now, currentDay, sourceThroughMs, d
     days,
     scope,
     unconfirmedSchedule,
-    runStatusUnconfirmed,
-    patrolRate: !scope.slot ? { state: 'none' } : runStatusUnconfirmed ? { state: 'unconfirmed' } : rate(tally.slot.ok, tally.slot.den),
-    dailyRate: !scope.daily ? { state: 'none' } : runStatusUnconfirmed ? { state: 'unconfirmed' } : rate(tally.daily.ok, tally.daily.den),
+    runStatusUnconfirmed: unc.slot && unc.daily,
+    runUnconfirmedKinds: unc,
+    // a kind without evidence, or with only not-judged runs in the window, is 未確認 - never 0% and never 対象なし
+    patrolRate: kindRate(scope.slot, unc.slot, tally.slot),
+    dailyRate: kindRate(scope.daily, unc.daily, tally.daily),
     stopped: { missing: tally.missing, blocked: tally.blocked, unknown: tally.unknown },
     questionsSent: qs.length,
     questionsIncomplete: questionsIncompleteFromMs != null && now > questionsIncompleteFromMs,

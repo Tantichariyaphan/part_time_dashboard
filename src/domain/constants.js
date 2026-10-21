@@ -11,6 +11,8 @@ export const BANNER_STALE_MINUTES = 20;
 export const PRODUCTION_HEARTBEAT_RED_MINUTES = 15;
 /** Light check silent this long inside its window -> red (REQ §6-⑥, TV14). */
 export const LIGHT_CHECK_RED_MINUTES = 15;
+/** 5-min patrol: a gap longer than this is the client's stop-detection case (client rules 2026-10-21 §4). Over 15 = 遅延／要確認. */
+export const FIVE_MIN_STOP_MINUTES = 20;
 /** Page ⑤ window (REQ §6-⑤). */
 export const RECENT_FAILURE_DAYS = 14;
 /** Latest alerts shown on page ⑥ (REQ §6-⑥). */

@@ -15,22 +15,27 @@ export const id = 'all';
 export const needsStore = false;
 export const load = () => api('all-stores');
 
-function scheduleLine(label, part, store) {
+function scheduleLine(label, part, store, kind) {
   if (part.scope === 'out_of_scope') return h('div', { class: 'row-top' }, h('b', null, label), h('span', { class: 'muted' }, S.outOfScope));
   if (part.unconfirmedSchedule) return AlertCard(label, S.scheduleUnconfirmed, 'warn');
   return h('a', { class: 'row-top rowlink', href: href.today(store) }, h('b', null, label),
     h('div', { class: 'dots' }, part.items.length
-      ? part.items.map((i) => DotLabel(runTone(i.status), hhmm(i.at), runLabel(i.status)))
+      ? part.items.map((i) => DotLabel(runTone(i.status), hhmm(i.at), runLabel(i.status, kind)))
       : h('span', { class: 'muted' }, '—')));
 }
 
-/** One line on top of the card: 今日：巡回3回予定・未回答（候補なし）2件・回答未確認5件・稼働機 正常 (display only). */
+/** One line on top of the card: 今日：定時読取3回予定・未回答（候補なし）2件・5分巡回 最終08:45・機械の確認 PASS (display only). */
 export function summaryLine(s) {
   const A = S.all;
   const parts = [];
   if (s.patrol.scope !== 'out_of_scope') parts.push(s.patrol.unconfirmedSchedule ? A.scheduleUnknown : A.patrolPlanned(s.patrol.items.length));
   parts.push(A.waitingShort(s.waitingQuestions));
   if (s.candidateQuestions) parts.push(A.candidateShort(s.candidateQuestions));
+  const l = s.lightCheck;
+  if (l && l.state !== 'out_of_scope') {
+    parts.push(l.state === 'ok' ? A.fiveMin.ok(hhmm(l.lastRunAt) ?? '—') : l.state === 'confirmed' ? A.fiveMin.confirmed(hhmm(l.lastRunAt) ?? '—')
+      : l.state === 'red' && !l.stopDetected ? A.fiveMin.late : A.fiveMin[l.state] ?? A.fiveMin.unknown);
+  }
   parts.push(A.machineShort[s.machine?.state] ?? A.machineShort.unknown);
   return `${A.summaryToday}：${parts.join('・')}`;
 }
@@ -49,8 +54,8 @@ export function view(env) {
       return Card(head,
         h('div', { class: 'stack' },
           h('div', { class: 'summary-line' }, summaryLine(s)),
-          scheduleLine(S.all.patrol, s.patrol, s.store),
-          scheduleLine(S.all.daily, s.daily, s.store),
+          scheduleLine(S.all.patrol, s.patrol, s.store, 'slot'),
+          scheduleLine(S.all.daily, s.daily, s.store, 'daily'),
           (runRuleOnly || s.patrol.unconfirmedStatus || s.daily.unconfirmedStatus) && h('div', { class: 'small muted' }, S.runStatusUnconfirmed),
           Metrics(
             MetricCard(S.all.questions, s.questionsToday.state === 'value' ? `${s.questionsToday.value}${S.all.unit}` : S.notPulled, null, { href: href.today(s.store) }),
@@ -60,6 +65,7 @@ export function view(env) {
           h('a', { class: 'rowlink', href: href.machines() }, KeyValues([
             [S.all.machine, MachineBadge(s.machine)],
             [S.all.lightCheck, LightCheckBadge(s.lightCheck)],
-          ]))));
+          ])),
+          s.lightCheck?.state !== 'out_of_scope' && h('div', { class: 'small muted' }, s.lightCheck?.evidence ? S.machines.fiveMinEvidenceNote : S.machines.fiveMinNote)));
     }));
 }

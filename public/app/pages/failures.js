@@ -7,6 +7,7 @@ import { runLabel, runTone, sendTone } from '../status.js';
 import { Card, Links, MetricCard, Metrics, AlertCard } from '../components/cards.js';
 import { href } from '../lib/present.js';
 import { runValues } from './today.js';
+import { reasonText } from '../status.js';
 import { StatusBadge } from '../components/badges.js';
 import { EmptyState } from '../components/states.js';
 
@@ -22,6 +23,7 @@ export function view(env, ctx) {
     // Q-49 / T-01 pending: ONE message instead of four 未判定 tiles and an empty list (client review 2026-10-19). Nothing is shown
     // as "0" - the run figures are simply not judged until the rule is decided.
     d.runStatusUnconfirmed && AlertCard(null, S.runStatusPending, 'warn'),
+    !d.runStatusUnconfirmed && ['slot', 'daily'].filter((k) => d.runUnconfirmedKinds?.[k]).map((k) => AlertCard(null, S.runKindUnconfirmed[k], 'warn')),
     !d.runStatusUnconfirmed && Metrics(...[[S.failures.missing, t.missing], [S.failures.blocked, t.blocked], [S.failures.late, t.late], [S.failures.unknown, t.unknown]]
       .map(([label, n]) => MetricCard(label, `${n}`))),
     (!d.runStatusUnconfirmed || d.items.length > 0) && Card({ title: `${S.pages.failures.title}` },
@@ -31,9 +33,9 @@ export function view(env, ctx) {
         return h('div', { class: 'row' },
           h('div', { class: 'row-top' },
             h('span', { class: 't' }, `${dateLabel(r.businessDay)} ${hhmm(r.scheduledAt)}`), h('span', null, S.kind[r.kind]),
-            StatusBadge(runTone(r.status), runLabel(r.status)),
+            StatusBadge(runTone(r.status), runLabel(r.status, r.kind)),
             r.derived && h('span', { class: 'small muted' }, S.runDerived[r.derived])),
-          h('div', { class: 'small' }, r.display_name, r.reason && `　${r.reason}`),
+          h('div', { class: 'small' }, r.display_name, r.reason && `　${reasonText(r.reason)}`),
           h('div', { class: 'links' },
             r.hasRow && h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': String(open), onclick: () => ctx.toggle(key) }, open ? S.link.hide : S.link.details),
             r.onTodayPage && h('a', { href: href.today(r.store) }, S.link.toToday),

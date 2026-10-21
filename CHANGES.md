@@ -3,6 +3,39 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-21 (b) — evidence connection (Iida-san: 「そのまま進めてください」)
+
+- New optional copy tabs `定時読取` / `5分巡回` / `日次配送` (client minimum columns §6-5; tab names and values: PIATEC proposal,
+  `docs/evidence-contract-proposal-2026-10-21.md`). Judged per the rules of 10/21 in `src/adapters/copy/evidence.js`; a kind is
+  judged only when its tab is present, passes the contract check and its meta row (if any) is ok. Absent tab = previous behaviour.
+- Labels when judged: 読取完了 / 遅れて読取完了 / 3 経路受付記録あり / 遅れて受付 / 受付途中 / 結果不明 (was 結果確認不可) /
+  未確認（記録なし）; daily per-route badges (ALL LINE / 丸 LINE / 丸メール); 5 分巡回 動作確認（その回のみ） / 要確認 / 担当未確認.
+- The reader requests the optional tabs and the contract / meta checks accept them — **deploy before the client adds them** (the
+  current production version would refuse the copy).
+- ⑥ shows the state of the three evidence tabs; `npm run diag:ops` prints them.
+- Tests: EV-1 … EV-8, OPS-3. 244 → 253, synthetic only. Not verified with the client's real tabs (they do not exist yet).
+
+## Unreleased — 2026-10-21 — client run-status rules (「NIKUSHO 巡回・日次の状態判定ルール」 1/7–7/7)
+
+Applied with the evidence the dashboard has today; no data source, count or send changed. Gap analysis, traceability and the
+verification status: `docs/run-status-rules-2026-10-21.md` (the earlier `docs/run-status-proposal.md` is marked superseded).
+- **Five separate names:** データ更新 / 機械の確認 (was 稼働機) / 定時 LINE 読取 (was 巡回) / 5 分巡回 (was 簡易チェック) / 日次配送
+  (was 日次). ⑥ nav 「機械・更新」, title 「機械の確認とデータ更新」.
+- **Not-judged results:** 定時 LINE 読取 「未確認（読取記録 未接続）」, 日次配送 「3 経路判定未接続」 (was 状態未判定). The notices now say the
+  rules exist and the client's records are not connected yet (was 「判定ルール待ち」).
+- **⑦:** one row per state again — 定時読取成功率 未確認 / 日次配送（3 経路） 3 経路判定未接続 / 欠落・停止・結果不明 未確認 / 5 分巡回・返信の
+  成功率 未集計. The single merged row of 10/19 is removed (it combined states the rules keep apart).
+- **5 分巡回:** shows 「最終稼働 HH:MM（N分前）」 and 「最終稼働時刻のみ確認／全件判定未接続」; over 15 min 「遅延／要確認」, over 20 min
+  「20分超の空き（停止検知）」 (red after 15 min unchanged, REQ TV14). 「動作確認」 is not shown (needs `heartbeat.jsonl`).
+- **送信ログ OK:** 「送信済み」 → 「送信受付」 (acceptance record only, not 既読 / 解決).
+- `config/stores.json`: slot 90 / daily 60 min noted as stated by the client on 10/21 (values unchanged).
+- New `npm run diag:ops -- --day YYYY-MM-DD` (`scripts/ops-reconcile.js`): read-only per-day view of the five states (times,
+  counts, fixed codes only) for the 10/20 reconciliation; names the evidence that is not readable.
+- `npm run check:access`: a placeholder or non-Vercel `--preview` now stops the run, and a Preview that does not answer
+  (HTTP 0) is FAIL (it was counted as PASS on 2026-10-21; that run's Preview result is void).
+- Tests: RULE-1021-1…6, OPS-1…2; SCREEN-10 / 11 updated to the new names and separate ⑦ rows. 236 → 244, synthetic only.
+  Headless UI review: no findings. **Not verified on live data or on a Preview URL yet.**
+
 ## Unreleased — 2026-10-19 (b) — shorter screens after the first look at the live data (display only)
 
 Nothing here changes a count, a state, a candidate rule or the data read; every shortened item is one tap away.

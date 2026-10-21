@@ -6,6 +6,7 @@ import { validateScreen } from '../normalize/validate.js';
 import { computeFreshness } from '../domain/freshness.js';
 import { businessDayOf, formatIso, minutesBetween } from '../domain/time.js';
 import { TAB_NAME } from '../contract/enums.js';
+import { SLOT_RULE_FROM } from '../contract/evidenceContract.js';
 
 export function buildContext(adapterResult) {
   assertAdapterResult(adapterResult);
@@ -22,11 +23,29 @@ export function buildContext(adapterResult) {
     connection: adapterResult.storeConnection ?? {},
     limits: adapterResult.limits ?? {},
     sources: adapterResult.sources ?? null,
+    evidence: adapterResult.evidence ?? null, // client run-evidence (copy adapter): 5-min patrol rows or null
   };
 }
 
-/** Run status cannot be read from the source yet (copy adapter, Q-49): runs are listed, never judged. */
-export const runStatusUnconfirmed = (ctx) => ctx.limits?.runStatus === 'UNCONFIRMED';
+/**
+ * Run status of one kind cannot be read from the source (copy adapter): runs are listed, never judged. Since the client
+ * rules of 2026-10-21 a kind is judged once the client's evidence tab for it is connected (limits.runStatusByKind).
+ */
+export const runStatusUnconfirmedFor = (ctx, kind) => (ctx.limits?.runStatusByKind
+  ? ctx.limits.runStatusByKind[kind] !== 'EVIDENCE'
+  : ctx.limits?.runStatus === 'UNCONFIRMED');
+/** Neither kind can be judged. */
+export const runStatusUnconfirmed = (ctx) => runStatusUnconfirmedFor(ctx, 'slot') && runStatusUnconfirmedFor(ctx, 'daily');
+/** Per-kind flags for dayRuns / periodMetrics. */
+export const runUnconfirmedKinds = (ctx) => ({ slot: runStatusUnconfirmedFor(ctx, 'slot'), daily: runStatusUnconfirmedFor(ctx, 'daily') });
+/** Judged from the client's evidence records: a scheduled run without a record is 未確認（記録なし）, never 未実行 (rules §2.3). */
+export const runsFromEvidence = (ctx) => !!ctx.limits?.runStatusByKind;
+/** Options for dayRuns() / periodMetrics(): per-kind judging, evidence-mode empty runs, and the slot rule start. */
+export const runOpts = (ctx) => ({
+  statusUnconfirmed: runUnconfirmedKinds(ctx),
+  noRowStatus: runsFromEvidence(ctx) ? 'no_evidence' : 'no_row',
+  judgedFrom: runsFromEvidence(ctx) ? { slot: Date.parse(SLOT_RULE_FROM) } : null,
+});
 /** Instant from which question records are known to be incomplete (copy adapter, Q-52), or null. */
 export const questionsIncompleteFromMs = (ctx) => {
   const ms = Date.parse(ctx.limits?.questionsIncompleteFrom ?? '');
@@ -49,7 +68,8 @@ export function publicSources(ctx) {
       replyLinks: c.replyLinks ?? null, unclassified: c.unclassified ?? null, collapsedMessageRows: c.collapsedMessageRows ?? null,
     },
     heartbeat: { state: h.state ?? 'NOT_CONNECTED', reason: h.reason ?? null, readAt: h.readAt ?? null, tabs: tabs(h.tabs) },
-    runStatus: ctx.limits?.runStatus ?? null,
+    runStatus: ctx.limits?.runStatus ?? null, runStatusByKind: ctx.limits?.runStatusByKind ?? null,
+    evidenceTabs: (c.evidenceTabs ?? []).map((t) => ({ tab: t.tab, state: t.state, rows: t.rows ?? null, findingCount: t.findingCount ?? 0, findings: (t.findings ?? []).map((f) => ({ row: f.row ?? null, column: f.column ?? null, problem: f.problem })) })),
     questionsIncompleteFrom: ctx.limits?.questionsIncompleteFrom ?? null,
   };
 }

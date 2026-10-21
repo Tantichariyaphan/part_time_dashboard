@@ -1,6 +1,7 @@
 {
   "_note": "Bangkok configuration for NIKUSHO_LIVE_ADAPTER=copy (NIKUSHO_STORES_FILE). CONFIRMED by the client 2026-10-07: slot history, daily 00:35, production_host snowmaru. PROVISIONAL until the client confirms (listed in _provisional): values taken from REQ examples / samples.",
-  "_provisional": ["stores.store", "stores.display_name", "stores.business_day_start", "stores.slot_deadline_min", "stores.daily_deadline_min", "stores.text_patrol", "schedules daily valid_from"],
+  "_provisional": ["stores.store", "stores.display_name", "stores.business_day_start", "stores.text_patrol", "schedules daily valid_from"],
+  "_confirmed_2026_10_21": "slot_deadline_min 90 / daily_deadline_min 60 stated by the client as the current instruction values (rules 2026-10-21 §2); values unchanged",
   "stores": [
     {
       "store": "NIKUSHO_BANGNA",

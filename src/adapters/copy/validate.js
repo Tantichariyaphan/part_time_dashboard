@@ -9,6 +9,7 @@ import {
   FREE_TEXT_COLUMNS, GROUP_ID_SUFFIX, HEARTBEAT_TAB, LINE_ID_ALLOWED_COLUMN, MESSAGE_KIND_MAP, RESEND_MARK, ROW_ID,
 } from '../../contract/copyContract.js';
 import { ALLOWED_GROUPS } from '../../contract/enums.js';
+import { EVIDENCE_TAB } from '../../contract/evidenceContract.js';
 import { COLUMNS } from '../../contract/columns.js';
 import { addDays, zonedInstant } from '../../domain/time.js';
 
@@ -200,8 +201,9 @@ function validateDataTab(key, table, timezone) {
 function validateMeta(table, timezone) {
   const result = newTabResult(COPY_TAB.meta);
   const perTab = {};
+  const evidence = {};
   let selfRow = false;
-  if (!checkHeader(result, table, COPY_COLUMNS.meta, { exactOrder: true })) return { result, perTab };
+  if (!checkHeader(result, table, COPY_COLUMNS.meta, { exactOrder: true })) return { result, perTab, evidence };
   const records = toRecords(result, table, null);
   const names = Object.fromEntries(COPY_DATA_TAB_KEYS.map((k) => [COPY_TAB[k], k]));
   for (const rec of records) {
@@ -209,6 +211,12 @@ function validateMeta(table, timezone) {
     if (rec.tab.trim() === COPY_TAB.meta) {
       if (selfRow) note(result, null, 'tab', 'duplicate_meta_row');
       selfRow = true;
+      continue;
+    }
+    const evKey = Object.keys(EVIDENCE_TAB).find((k) => EVIDENCE_TAB[k] === rec.tab.trim());
+    if (evKey) { // optional meta row of a run-evidence tab (client rules 2026-10-21): only its status is used
+      if (evidence[evKey]) { note(result, null, 'tab', 'duplicate_meta_row'); continue; }
+      evidence[evKey] = rec.status.trim() || null;
       continue;
     }
     const key = names[rec.tab.trim()];
@@ -221,7 +229,7 @@ function validateMeta(table, timezone) {
     perTab[key] = { record: rec, problems };
   }
   result.records = result.ok ? records : [];
-  return { result, perTab };
+  return { result, perTab, evidence };
 }
 
 /**
@@ -233,10 +241,10 @@ function validateMeta(table, timezone) {
 export function validateCopy(read, { timezone = null } = {}) {
   const copy = newTabResult('(copy)');
   const tables = read?.tables ?? {};
-  const known = new Set(Object.values(COPY_TAB));
+  const known = new Set([...Object.values(COPY_TAB), ...Object.values(EVIDENCE_TAB)]); // run-evidence tabs are optional
   if (Array.isArray(read?.titles)) for (const t of read.titles) if (!known.has(String(t))) note(copy, null, null, 'unexpected_tab');
 
-  const { result: meta, perTab } = validateMeta(tables[COPY_TAB.meta], timezone);
+  const { result: meta, perTab, evidence: evidenceMeta } = validateMeta(tables[COPY_TAB.meta], timezone);
   if (!meta.ok) note(copy, null, null, 'meta_invalid');
 
   const tabs = {};
@@ -249,7 +257,7 @@ export function validateCopy(read, { timezone = null } = {}) {
     if (!r.ok) r.records = [];
     tabs[key] = { ...r, meta: m?.record ?? null };
   }
-  return { ok: copy.ok, copyFindings: copy.findings, copyFindingCount: copy.findingCount, meta, tabs };
+  return { ok: copy.ok, copyFindings: copy.findings, copyFindingCount: copy.findingCount, meta, tabs, evidenceMeta };
 }
 
 /** Machine Heartbeat Spreadsheet: tabs `beats` and `alerts` with the REQ §5-3 columns (order not fixed by REQ). */

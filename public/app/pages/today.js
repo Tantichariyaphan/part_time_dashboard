@@ -4,7 +4,7 @@ import { S } from '../strings.ja.js';
 import { api, ApiError } from '../lib/api.js';
 import { dateLabel, hhmm, mdhm } from '../lib/format.js';
 import { href, messageBody } from '../lib/present.js';
-import { runLabel, runTone, qTone, sendTone } from '../status.js';
+import { reasonText, routeTone, runLabel, runTone, qTone, sendTone } from '../status.js';
 import { Card, KeyValues, AlertCard } from '../components/cards.js';
 import { StatusBadge } from '../components/badges.js';
 import { EmptyState, ErrorState, LoadingState, NotConnectedState } from '../components/states.js';
@@ -17,8 +17,21 @@ export const load = ({ store }) => api('today', { store });
 const count = (v) => (v === null ? S.notPulled : v === 0 ? S.zero : `${v}${S.all.unit}`); // blank != 0
 const time = (iso) => hhmm(iso) ?? '—';
 
+/** Per-route detail of a daily delivery judged from the client's 日次配送 records (rules 2026-10-21 §5). */
+export function Routes(r) {
+  if (!r.routes) return null;
+  return h('div', { class: 'stack' },
+    h('div', { class: 'dots' }, r.routes.map((x) => h('span', { class: 'runchip' }, `${S.route[x.route] ?? x.route}${x.at ? ` ${hhmm(x.at)}` : ''}`,
+      StatusBadge(routeTone(x.status), S.routeStatus[x.status] ?? S.unknown, { compact: true })))),
+    h('div', { class: 'small muted' }, S.routeNote));
+}
+
 export function runValues(r) {
   if (!r.hasRow) return null;
+  if (r.evidence === 'client_records') { // judged from the client's records: only what they carry
+    if (r.kind === 'daily') return Routes(r);
+    return KeyValues([[S.today.readDone, time(r.read_at)], [S.today.readCount, count(r.input_lines)]]);
+  }
   const items = [
     [S.today.input, count(r.input_lines)],
     [S.today.questions, count(r.questions_sent)],
@@ -38,12 +51,12 @@ function RunRow(r, ctx, businessDay) {
   return h('div', { class: 'row' },
     h('div', { class: 'row-top' },
       h('span', { class: 't' }, hhmm(r.scheduledAt)), h('span', null, S.kind[r.kind]),
-      StatusBadge(runTone(r.status), runLabel(r.status)),
+      StatusBadge(runTone(r.status), runLabel(r.status, r.kind)),
       r.derived && h('span', { class: 'small muted' }, S.runDerived[r.derived])),
-    r.reason && h('div', { class: 'small' }, `${S.today.reason}：${r.reason}`),
+    r.reason && h('div', { class: 'small' }, `${S.today.reason}：${reasonText(r.reason)}`),
     runValues(r),
     h('div', { class: 'links' },
-      r.run_id && h('button', { class: 'btn', type: 'button', 'aria-expanded': String(open), onclick: () => ctx.toggle(r.key) }, open ? S.close : S.open),
+      r.run_id && r.evidence !== 'client_records' && h('button', { class: 'btn', type: 'button', 'aria-expanded': String(open), onclick: () => ctx.toggle(r.key) }, open ? S.close : S.open),
       h('a', { href: href.messages(ctx.store, businessDay) }, S.link.toMessages)),
     open && detail);
 }
@@ -87,6 +100,7 @@ export function view(env, ctx) {
     d.days.map((day) => Card(
       { title: `${day.label === 'today' ? S.dayToday : S.dayYesterday}　${dateLabel(day.businessDay)}` },
       day.unconfirmedSchedule.slot || day.unconfirmedSchedule.daily ? AlertCard(null, S.scheduleUnconfirmed, 'warn') : null,
-      day.unconfirmedStatus ? AlertCard(null, S.runStatusUnconfirmed, 'warn') : null,
+      day.unconfirmedStatus ? AlertCard(null, S.runStatusUnconfirmed, 'warn')
+        : ['slot', 'daily'].filter((k) => day.unconfirmedKinds?.[k]).map((k) => AlertCard(null, S.runKindUnconfirmed[k], 'warn')),
       day.items.length ? h('div', { class: 'rows' }, day.items.map((r) => RunRow(r, ctx, day.businessDay))) : EmptyState(S.none))));
 }

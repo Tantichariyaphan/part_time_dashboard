@@ -1,5 +1,8 @@
 # Run-status proposal — reading `心拍.結果` (and `送信ログ`) for patrol and daily runs
 
+> **Superseded 2026-10-21.** The client sent its own rules (「NIKUSHO 巡回・日次の状態判定ルール」 1/7–7/7). They do not use `心拍.結果` for
+> any status (GAS `slot-readonly` is auxiliary only). See `docs/run-status-rules-2026-10-21.md`. This file is kept as history.
+
 Status: **DRAFT PROPOSAL by PIATEC — not approved, not implemented, not yet sent: to be revised with the live shapes first (§5 item 7).** The dashboard keeps showing every scheduled run as
 "状態未判定" (`unconfirmed`) or "時刻前" (`not_due`) until the client approves an interpretation (Q-49). Nothing in this file
 changes `src/`; the reading below exists only in the diagnostic `scripts/analyze-heartbeat.js`.

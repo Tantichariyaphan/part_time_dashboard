@@ -154,22 +154,27 @@ test('SCREEN-10 ① the card has a one-line summary; the evidence badge is repla
   const code = page('allStores.js');
   assert.match(code, /runRuleOnly \? null : EvidenceBadge/);
   assert.match(code, /runRuleOnly \|\| s\.patrol\.unconfirmedStatus/, 'the pending rule is still said in words on the card');
-  assert.equal(S.all.machineShort.ok, '稼働機 正常');
+  assert.equal(S.all.machineShort.ok, '機械の確認 PASS'); // client rules 2026-10-21 §6-1: PASS only under 「機械の確認」
   { // summaryLine is pure (no DOM)
     const s = { patrol: { scope: 'in_scope', items: [1, 2, 3] }, waitingQuestions: 2, candidateQuestions: 0, machine: { state: 'ok' } };
-    assert.equal(summaryLine(s), '今日：巡回3回予定・未回答（候補なし）2件・稼働機 正常');
+    // names per the client rules of 2026-10-21 (定時 LINE 読取 / 5 分巡回 / 機械の確認 are separate)
+    assert.equal(summaryLine(s), '今日：定時読取3回予定・未回答（候補なし）2件・機械の確認 PASS');
     assert.equal(summaryLine({ ...s, patrol: { scope: 'in_scope', unconfirmedSchedule: true, items: [] }, candidateQuestions: 32, machine: { state: 'red' } }),
-      '今日：巡回予定 未確認・未回答（候補なし）2件・回答未確認32件・稼働機 異常');
+      '今日：定時読取の予定 未確認・未回答（候補なし）2件・回答未確認32件・機械の確認 要確認');
+    assert.equal(summaryLine({ ...s, lightCheck: { state: 'ok', lastRunAt: '2026-10-21T08:45:00+07:00' } }), '今日：定時読取3回予定・未回答（候補なし）2件・5分巡回 最終08:45・機械の確認 PASS');
+    assert.equal(summaryLine({ ...s, lightCheck: { state: 'red', stopDetected: false } }), '今日：定時読取3回予定・未回答（候補なし）2件・5分巡回 遅延／要確認・機械の確認 PASS');
   }
 });
 
-test('SCREEN-11 ⑤ / ⑦ run rule pending: one message, no 未判定 tiles and no 0', () => {
+test('SCREEN-11 ⑤ evidence not connected: one message, no 未判定 tiles, never 0 (⑦ keeps one row per state, rules 2026-10-21)', () => {
   const f = page('failures.js');
   assert.match(f, /d\.runStatusUnconfirmed && AlertCard\(null, S\.runStatusPending/);
   assert.match(f, /!d\.runStatusUnconfirmed && Metrics/);
+  assert.match(S.runStatusPending, /0 件・0% ではありません/, 'says explicitly that nothing is zero');
+  // 10/19 merged 定時読取 and 日次 into one ⑦ row; the client's rules (§0, §6) require them separate -> one row each again
   const p = page('periods.js');
-  assert.match(p, /allRunPending \? \[\[S\.periods\.runRows/);
-  assert.doesNotMatch(S.runStatusPending, /0/);
+  for (const k of ['patrolRate', 'dailyRate', 'stopped', 'fiveMinRate']) assert.match(p, new RegExp(`S\\.periods\\.${k}`), k);
+  assert.doesNotMatch(p, /allRunPending/);
 });
 
 test('SCREEN-12 ⑥ a long row-number list is folded to 「ID破損 N行」, the full text one tap away', async () => {

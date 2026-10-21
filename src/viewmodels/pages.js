@@ -1,13 +1,13 @@
 // View models for the 7 pages (REQ §6). Pure functions: (ctx, params) -> plain JSON for the read-only API.
 // All business rules live in src/domain; the UI only renders what is returned here.
-import { activeStores, connectionOf, currentDay, findStore, publicFreshness, publicSources, questionsIncompleteFromMs, runStatusUnconfirmed, sourceThroughOf } from './context.js';
+import { activeStores, connectionOf, currentDay, findStore, publicFreshness, publicSources, questionsIncompleteFromMs, runOpts, runStatusUnconfirmed, runUnconfirmedKinds, sourceThroughOf } from './context.js';
 import { storeCapability } from '../domain/capability.js';
 import { dayRuns, effectiveRunStatus } from '../domain/runs.js';
 import { countWithCoverage, dayCoverage } from '../domain/freshness.js';
 import { addDays, businessDayOf, businessDayWindow, formatIso, minutesBetween, parseMs, recentDays } from '../domain/time.js';
 import { filterGroup, readAnswers, stateKey, waitHours } from '../domain/questions.js';
 import { messageRow } from '../domain/messages.js';
-import { latestPerMachine, lightCheck, machineView, storeMachine } from '../domain/production.js';
+import { fiveMinCheck, latestPerMachine, machineView, storeMachine } from '../domain/production.js';
 import { periodMetrics } from '../domain/metrics.js';
 import { isDummyBeat, isDummyMessage, isDummyQuestion, isDummyRun, isDummySend, real } from '../domain/dummy.js';
 import { ALERTS_SHOWN, HEARTBEAT_WRITE_INTERVAL_MINUTES, PERIOD_DAYS, RECENT_FAILURE_DAYS } from '../domain/constants.js';
@@ -54,8 +54,14 @@ function runRow(it) {
     received_at: nz(r?.received_at),
     evidence: nz(r?.evidence),
     updated_at: nz(r?.updated_at),
+    routes: routesOf(r?.routes_json), // daily judged from the client's 日次配送 records: per-route status (codes and times)
   };
 }
+
+const routesOf = (json) => {
+  if (!json) return null;
+  try { const v = JSON.parse(json); return Array.isArray(v) ? v.map((x) => ({ route: String(x.route), status: String(x.status), at: x.at ?? null })) : null; } catch { return null; }
+};
 
 // ---------------------------------------------------------------- cross-page references (registry keys only, never inferred)
 /** Is a business day still listed on ② (today / yesterday)? Used for links only. */
@@ -136,8 +142,8 @@ export function allStores(ctx) {
     if (conn !== 'connected') return base;
 
     const day = currentDay(ctx, store);
-    const { items, unconfirmedSchedule, unconfirmedStatus } = dayRuns({
-      store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: day, statusUnconfirmed: runStatusUnconfirmed(ctx),
+    const { items, unconfirmedSchedule, unconfirmedKinds } = dayRuns({
+      store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: day, ...runOpts(ctx),
     });
     const scope = scopeOf(store);
     const ofKind = (kind) => items.filter((i) => i.kind === kind).sort((a, b) => a.scheduledMs - b.scheduledMs)
@@ -156,8 +162,8 @@ export function allStores(ctx) {
     return {
       ...base,
       businessDay: day,
-      patrol: scope.slot ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.slot, unconfirmedStatus, items: unconfirmedSchedule.slot ? [] : ofKind('slot') } : { scope: 'out_of_scope' },
-      daily: scope.daily ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.daily, unconfirmedStatus, items: unconfirmedSchedule.daily ? [] : ofKind('daily') } : { scope: 'out_of_scope' },
+      patrol: scope.slot ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.slot, unconfirmedStatus: unconfirmedKinds.slot, items: unconfirmedSchedule.slot ? [] : ofKind('slot') } : { scope: 'out_of_scope' },
+      daily: scope.daily ? { scope: 'in_scope', unconfirmedSchedule: unconfirmedSchedule.daily, unconfirmedStatus: unconfirmedKinds.daily, items: unconfirmedSchedule.daily ? [] : ofKind('daily') } : { scope: 'out_of_scope' },
       questionsToday: asked.length ? { state: 'value', value: asked.reduce((s, v) => s + v, 0) } : { state: 'unpulled' },
       waitingQuestions: waiting, // all days, no possibly related answer (未回答)
       candidateQuestions: candidate, // all days, possibly related answer not confirmed (回答未確認)
@@ -165,7 +171,7 @@ export function allStores(ctx) {
       messagesToday: countWithCoverage(todays.length, cov),
       botRepliesToday: countWithCoverage(todays.filter((m) => m.flags.replied).length, cov),
       machine: summarizeMachine(storeMachine(store, ctx.screen.beats, ctx.now)),
-      lightCheck: lightCheck(store, ctx.screen.beats, ctx.now),
+      lightCheck: fiveMinCheck(store, ctx.evidence?.patrol ?? null, ctx.screen.beats, ctx.now),
     };
   });
   return { stores: out };
@@ -183,8 +189,8 @@ export function today(ctx, storeId) {
   const day = currentDay(ctx, store);
   const dataRuns = real(ctx.screen.runs, isDummyRun);
   const mk = (d, label) => {
-    const { items, unconfirmedSchedule, unconfirmedStatus } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day: d, now: ctx.now, currentDay: day, statusUnconfirmed: runStatusUnconfirmed(ctx) });
-    return { label, businessDay: d, unconfirmedSchedule, unconfirmedStatus, items: items.map(runRow) };
+    const { items, unconfirmedSchedule, unconfirmedStatus, unconfirmedKinds } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day: d, now: ctx.now, currentDay: day, ...runOpts(ctx) });
+    return { label, businessDay: d, unconfirmedSchedule, unconfirmedStatus, unconfirmedKinds, items: items.map(runRow) };
   };
   return {
     store: store.store, display_name: store.display_name, connection: 'connected', scope: scopeOf(store),
@@ -271,7 +277,7 @@ export function failures(ctx) {
   for (const store of connected) {
     const cur = currentDay(ctx, store);
     for (const day of recentDays(cur, RECENT_FAILURE_DAYS)) {
-      const { items: its } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: cur, statusUnconfirmed: runStatusUnconfirmed(ctx) });
+      const { items: its } = dayRuns({ store, schedules: ctx.screen.schedules, runs: dataRuns, day, now: ctx.now, currentDay: cur, ...runOpts(ctx) });
       for (const it of its) {
         if (!PROBLEM.has(it.status)) continue;
         items.push({ ...runRow(it), store: store.store, display_name: store.display_name, businessDay: day, onTodayPage: onTodayPage(ctx, store, day) });
@@ -291,7 +297,8 @@ export function failures(ctx) {
     });
   return {
     days: RECENT_FAILURE_DAYS, totals, items, sendProblems,
-    runStatusUnconfirmed: runStatusUnconfirmed(ctx), // runs are not judged at all (Q-49): an empty list is not "no failures"
+    runStatusUnconfirmed: runStatusUnconfirmed(ctx), // neither kind judged (no evidence connected): an empty list is not "no failures"
+    runUnconfirmedKinds: runUnconfirmedKinds(ctx),
     unclassifiedSends: real(ctx.screen.sends, isDummySend).filter((s) => connected.some((c) => c.store === s.store) && s.result === null && parseMs(s.sent_at) >= windowStart).length,
     notConnected: stores.filter((s) => connectionOf(ctx, s) !== 'connected').map((s) => ({ store: s.store, display_name: s.display_name })),
   };
@@ -313,7 +320,7 @@ export function machines(ctx) {
     beatIntervalMin: HEARTBEAT_WRITE_INTERVAL_MINUTES, // machines write one row every 5 min (REQ §5-3): shown as information, not judged
     machines: latest == null ? [] : latest.filter(Boolean).map((b) => ({ ...machineView(b, ctx.now), recent: recentBeats(beats, b, ctx.now) }))
       .sort((a, b) => (a.role === 'production' ? -1 : 1) - (b.role === 'production' ? -1 : 1)),
-    lightChecks: stores.map((s) => ({ store: s.store, display_name: s.display_name, window: s.text_patrol, ...lightCheck(s, beats, ctx.now) })),
+    lightChecks: stores.map((s) => ({ store: s.store, display_name: s.display_name, window: s.text_patrol, ...fiveMinCheck(s, ctx.evidence?.patrol ?? null, beats, ctx.now) })),
     alerts,
   };
 }
@@ -343,7 +350,7 @@ export function periods(ctx, daysParam) {
         ...base,
         metrics: periodMetrics({
           store, data: ctx.screen, now: ctx.now, currentDay: day, sourceThroughMs: sourceThroughOf(ctx, 'messages'), days,
-          runStatusUnconfirmed: runStatusUnconfirmed(ctx), questionsIncompleteFromMs: questionsIncompleteFromMs(ctx),
+          runOptions: runOpts(ctx), questionsIncompleteFromMs: questionsIncompleteFromMs(ctx),
         }),
       };
     }),

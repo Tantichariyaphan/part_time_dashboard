@@ -4,8 +4,8 @@
 //  - production heartbeat older than 15 min -> red; verify=FAIL -> red
 //  - light check: red only inside stores.text_patrol AND silent > 15 min counted from the LATER of
 //    "last run" and "start of today's window"; outside the window -> "off hours"
-import { PRODUCTION_HEARTBEAT_RED_MINUTES, LIGHT_CHECK_RED_MINUTES } from './constants.js';
-import { localParts, dateString, minutesBetween, parseHHMM, parseMs, zonedInstant } from './time.js';
+import { PRODUCTION_HEARTBEAT_RED_MINUTES, LIGHT_CHECK_RED_MINUTES, FIVE_MIN_STOP_MINUTES } from './constants.js';
+import { localParts, dateString, formatIso, minutesBetween, parseHHMM, parseMs, zonedInstant } from './time.js';
 import { isDummyBeat } from './dummy.js';
 
 const latest = (rows) => rows.reduce((best, r) => (!best || parseMs(r.received_at) > parseMs(best.received_at) ? r : best), null);
@@ -74,7 +74,40 @@ export function lightCheck(store, beats, now) {
   const ref = Math.max(last, startMs);
   const silentMin = minutesBetween(ref, now);
   return {
-    state: silentMin > LIGHT_CHECK_RED_MINUTES ? 'red' : 'ok',
-    lastRunMs: last, minutesAgo: minutesBetween(last, now), silentMin,
+    state: silentMin > LIGHT_CHECK_RED_MINUTES ? 'red' : 'ok', // REQ TV14: red after 15 min (unchanged)
+    // client rules 2026-10-21 §4: over 15 min = 遅延／要確認, over 20 min = stop detection. Display only: `ok` here never means
+    // the 5-min patrol succeeded - only that text_patrol_at (last problem-free run) is recent.
+    stopDetected: silentMin > FIVE_MIN_STOP_MINUTES,
+    lastRunMs: last, lastRunAt: formatIso(last), minutesAgo: minutesBetween(last, now), silentMin,
   };
+}
+
+/**
+ * 5-min patrol with the client's per-run evidence (client rules 2026-10-21 §4). Without the evidence (`patrol === null`)
+ * this is exactly lightCheck() (last-run time from beats.text_patrol_at only).
+ * With it, the latest row of the PRODUCTION host inside 10:00-24:00 decides:
+ *   gap > 15 min -> red (遅延／要確認), > 20 min -> red + stopDetected;
+ *   send=true, issues=0, audit_issues=0, google_beat ok AND owner=new -> `confirmed` (動作確認, for that run only);
+ *   any of those not met -> `issue` (要確認); owner missing / not `new` -> `owner_unconfirmed` (担当未確認, never success).
+ * Standby rows and other hosts are never used. Nothing here is a success rate.
+ */
+export function fiveMinCheck(store, patrol, beats, now) {
+  const base = lightCheck(store, beats, now);
+  if (patrol == null) return { ...base, evidence: false };
+  if (base.state === 'out_of_scope' || base.state === 'off_hours' || (base.state === 'unknown' && base.reason === 'window_unparsable')) return { ...base, evidence: true };
+  const win = parseWindow(store.text_patrol);
+  const p = localParts(now, store.timezone);
+  const startMs = zonedInstant(dateString(p.y, p.mo, p.d), win.start, store.timezone);
+  const rows = patrol.filter((r) => r.host === store.production_host && Number.isFinite(parseMs(r.at)) && parseMs(r.at) <= now);
+  const last = rows.reduce((best, r) => (!best || parseMs(r.at) > parseMs(best.at) ? r : best), null);
+  if (!last) return { state: 'unknown', reason: 'no_production_patrol_row', evidence: true };
+  const lastMs = parseMs(last.at);
+  const silentMin = minutesBetween(Math.max(lastMs, startMs), now);
+  const out = { evidence: true, lastRunMs: lastMs, lastRunAt: formatIso(lastMs), minutesAgo: minutesBetween(lastMs, now), silentMin,
+    stopDetected: silentMin > FIVE_MIN_STOP_MINUTES, issues: last.issues, audit_issues: last.audit_issues };
+  if (silentMin > LIGHT_CHECK_RED_MINUTES) return { ...out, state: 'red' };
+  const clean = last.send === true && last.issues === 0 && last.audit_issues === 0 && last.google_beat === true;
+  if (!clean) return { ...out, state: 'issue' };
+  if (last.owner !== 'new') return { ...out, state: 'owner_unconfirmed' };
+  return { ...out, state: 'confirmed' };
 }

@@ -15,6 +15,8 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, all) => (
 const base = String(args.url ?? '').replace(/\/$/, '');
 if (!/^(https:\/\/[^/]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/.test(base)) { console.error('usage: node scripts/access-check.mjs --url https://<production host> [--preview https://<preview host>]'); process.exit(2); }
 const preview = args.preview ? String(args.preview).replace(/\/$/, '') : null;
+// a placeholder such as https://<preview URL> or a typo must stop the run, never count as "no data" (2026-10-21: HTTP 0 was PASS)
+if (preview !== null && !/^https:\/\/[a-z0-9.-]+\.vercel\.app$/i.test(preview)) { console.error('--preview must be the real Preview deployment URL, e.g. https://<project>-git-<branch>-<team>.vercel.app'); process.exit(2); }
 
 const RESOURCES = ['entry', 'all-stores', 'today', 'messages', 'questions', 'failures', 'machines', 'periods', 'run'];
 // markers of key material or source configuration that must never reach a browser
@@ -63,9 +65,13 @@ async function main() {
   check('C assets', `${assets.size} scripts / styles followed`, assets.size > 0, '');
   // D. preview deployment
   if (preview) {
+    // the preview must ANSWER and refuse: 401/403 (Vercel protection or our sign-in), a redirect to a login page, or our
+    // not-connected answer without data. No answer at all (HTTP 0: wrong URL, DNS, network) proves nothing -> FAIL.
+    const home = await get(`${preview}/`);
+    check('D preview', 'preview reachable', home.status !== 0, home.status ? `HTTP ${home.status}` : `no answer (${home.error ?? 'network'})`);
     for (const r of ['entry', 'all-stores', 'messages', 'questions']) {
       const x = await get(`${preview}/api/live/${r}`);
-      check('D preview', `preview /api/live/${r}`, x.status !== 200 && !HAS_DATA.test(x.text), `HTTP ${x.status}`);
+      check('D preview', `preview /api/live/${r}`, x.status !== 0 && x.status !== 200 && !HAS_DATA.test(x.text), x.status ? `HTTP ${x.status}` : `no answer (${x.error ?? 'network'})`);
     }
   } else check('D preview', 'not given (--preview)', false, 'skipped');
   // E. write methods

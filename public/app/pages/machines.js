@@ -1,4 +1,4 @@
-// ⑥ 稼働機とデータ更新 - are the machines and the updates still working? (REQ §6-⑥)
+// ⑥ 機械の確認とデータ更新 - are the machines and the updates still working? (REQ §6-⑥; names: client rules 2026-10-21)
 import { h } from '../lib/dom.js';
 import { S } from '../strings.ja.js';
 import { api } from '../lib/api.js';
@@ -82,7 +82,14 @@ function Sources(src, ctx) {
     s.readAt && h('div', { class: 'small muted' }, `${T.readAt} ${mdhm(s.readAt)}`),
     (s.tabs ?? []).map(tabRow),
     s.replyLinks && h('div', { class: 'small muted' }, T.replies(s.replyLinks.confirmed, s.replyLinks.ambiguous, s.replyLinks.unlinked)));
-  return Card({ title: T.title }, h('div', { class: 'rows' }, part(T.copy, src.copy), part(T.heartbeat, src.heartbeat)));
+  // client run-evidence tabs (rules 2026-10-21): absent = 未接続, the matching state stays 未確認
+  const ev = (src.evidenceTabs ?? []).length > 0 && h('div', { class: 'row' },
+    h('div', { class: 'row-top' }, h('b', null, T.evidence)),
+    src.evidenceTabs.map((t) => h('div', { class: 'row-top small' }, h('span', null, t.tab),
+      StatusBadge(t.state === 'ok' ? 'tone-ok' : t.state === 'absent' ? 'tone-neutral' : 'tone-blocked', T.evidenceState[t.state] ?? t.state, { compact: true }),
+      t.rows != null && h('span', { class: 'muted' }, T.rows(t.rows)),
+      t.findingCount > 0 && h('span', null, `${T.findings(t.findingCount)}：${t.findings.map((f) => `${f.row ? `${T.rowPos} ${f.row} ` : ''}${f.column ?? ''} ${f.problem}`).join('、')}`))));
+  return Card({ title: T.title }, h('div', { class: 'rows' }, part(T.copy, src.copy), part(T.heartbeat, src.heartbeat), ev));
 }
 
 export function view(env, ctx) {
@@ -107,7 +114,9 @@ export function view(env, ctx) {
     d.lightChecks.length > 0 && Card({ title: S.machines.light },
       h('div', { class: 'rows' }, d.lightChecks.map((l) => h('div', { class: 'row' },
         h('div', { class: 'row-top' }, h('b', null, l.display_name), LightCheckBadge(l)),
-        l.window && h('div', { class: 'small muted' }, `${S.machines.window} ${l.window}`))))),
+        l.window && h('div', { class: 'small muted' }, `${S.machines.window} ${l.window}`),
+        // client rules 2026-10-21 §6-3: only the last-run time is confirmed; per-run results are not judged
+        h('div', { class: 'small muted' }, l.evidence ? S.machines.fiveMinEvidenceNote : `${S.machines.fiveMinNote}：${S.machines.fiveMinDetail}`))))),
     Card({ title: S.machines.alerts },
       d.alerts === null ? NotConnectedState(S.machines.noSheet)
         : d.alerts.length ? h('div', { class: 'rows' }, d.alerts.map((a) => h('div', { class: 'row' },

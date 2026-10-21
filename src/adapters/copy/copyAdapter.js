@@ -14,6 +14,7 @@ import { CONTRACT_VERSION, TAB_NAME } from '../../contract/enums.js';
 import { formatIso } from '../../domain/time.js';
 import { validateCopy, validateHeartbeat } from './validate.js';
 import { transformCopy } from './transform.js';
+import { evaluateEvidence } from './evidence.js';
 
 export const SOURCE_STATE = Object.freeze({
   NOT_CONNECTED: 'NOT_CONNECTED', // no reader access (reader account pending, Q-48) or not configured
@@ -86,13 +87,19 @@ export function createCopyAdapter({ config, copyReader, heartbeatReader, now = D
     }
     const v = validateCopy(c.data, { timezone: config.timezone });
     const { raw, report } = transformCopy(v, { store, timezone: config.timezone, nowMs: c.readAt });
+    // client rules 2026-10-21: run evidence tabs (optional). Not usable when the copy as a whole failed its check.
+    const ev = v.ok
+      ? evaluateEvidence(c.data.tables, { store, schedules: config.schedules, timezone: config.timezone, readAt: c.readAt, metaStatus: v.evidenceMeta ?? {} })
+      : { runs: null, judged: { slot: false, daily: false }, patrol: null, report: [] };
+    if (ev.runs) raw.runs = { columns: [...COLUMNS.runs, 'routes_json'], rows: ev.runs.map((r) => Object.fromEntries([...COLUMNS.runs, 'routes_json'].map((col) => [col, r[col] ?? null]))) };
     const blocked = report.tabs.some((x) => x.state === 'blocked');
     const state = !v.ok ? SOURCE_STATE.BLOCKED : blocked ? SOURCE_STATE.PARTIAL : SOURCE_STATE.CONNECTED;
     return {
       raw,
       connected: true,
+      evidence: { judged: ev.judged, patrol: ev.patrol },
       source: {
-        state, reason: null, readAt: formatIso(c.readAt),
+        state, reason: null, readAt: formatIso(c.readAt), evidenceTabs: ev.report,
         copyFindingCount: v.copyFindingCount, copyFindings: v.copyFindings.slice(0, 10),
         metaTab: { tab: COPY_TAB.meta, state: v.meta.ok ? 'ok' : 'blocked', findingCount: v.meta.findingCount, findings: v.meta.findings.slice(0, 10) },
         ...report,
@@ -136,7 +143,9 @@ export function createCopyAdapter({ config, copyReader, heartbeatReader, now = D
           ...hb.raw, // absent beats/alerts = NOT CONNECTED on ① and ⑥ (existing behaviour)
         },
         storeConnection,
-        limits: { ...COPY_SOURCE_LIMITS },
+        // per kind: a state is judged only when the client's evidence tab for it is connected (rules 2026-10-21)
+        limits: { ...COPY_SOURCE_LIMITS, runStatusByKind: { slot: copy.evidence?.judged.slot ? 'EVIDENCE' : 'UNCONFIRMED', daily: copy.evidence?.judged.daily ? 'EVIDENCE' : 'UNCONFIRMED' } },
+        evidence: { patrol: copy.evidence?.patrol ?? null },
         sources: { copy: copy.source, heartbeat: hb.source },
       };
     },

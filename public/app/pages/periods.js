@@ -17,8 +17,8 @@ export const load = ({ query }) => api('periods', { days: query.get('days') ?? '
 
 const NC = () => h('span', { class: 'muted' }, S.notConnected);
 
-function rateCell(r) {
-  if (r.state === 'unconfirmed') return S.periods.rateUnconfirmed; // run status not judged (Q-49) - never a number
+function rateCell(r, unconfirmedText = S.periods.runUnconfirmed) {
+  if (r.state === 'unconfirmed') return h('span', { class: 'muted' }, unconfirmedText); // evidence not connected (rules 2026-10-21) - never a number
   if (r.state === 'value') return h('span', null, pct(r.value), h('span', { class: 'sub' }, `${r.numerator}/${r.denominator}`));
   return S.none; // denominator 0 / out of scope -> "no qualifying items" (never 0%)
 }
@@ -42,21 +42,22 @@ export function view(env, ctx) {
   if (!stores.length) return EmptyState(S.noStores);
   const col = (fn) => stores.map((s) => (s.connection === 'connected' ? fn(s.metrics) : NC()));
   const chartStore = connected.find((s) => s.store === ctx.store) ?? connected[0];
-  const allRunPending = connected.length > 0 && connected.every((s) => s.metrics.runStatusUnconfirmed);
 
   return h('div', { class: 'stack' },
     Chips([['7', S.periods.d7], ['30', S.periods.d30]], String(d.days), (k) => ctx.go('periods', { days: k, store: ctx.store })),
     connected.some((s) => s.metrics.unconfirmedSchedule) && AlertCard(null, S.periods.unconfirmedSchedule, 'warn'),
     connected.some((s) => s.metrics.runStatusUnconfirmed) && AlertCard(null, S.runStatusPending, 'warn'),
+    !connected.some((s) => s.metrics.runStatusUnconfirmed) && ['slot', 'daily'].filter((k) => connected.some((s) => s.metrics.runUnconfirmedKinds?.[k])).map((k) => AlertCard(null, S.runKindUnconfirmed[k], 'warn')),
     Card({ title: S.pages.periods.title, sub: `${d.days === 7 ? S.periods.d7 : S.periods.d30}` },
       DataTable({
         columns: ['', ...stores.map((s) => s.display_name)],
         rows: [
-          // Q-49 / T-01 pending for every store: one row "判定ルール待ち" instead of three rows of 未判定 (client review 2026-10-19)
-          ...(allRunPending ? [[S.periods.runRows, ...col(() => h('span', { class: 'muted' }, S.periods.pendingRule))]] : [
-            [S.periods.patrolRate, ...col((m) => rateCell(m.patrolRate))],
-            [S.periods.dailyRate, ...col((m) => rateCell(m.dailyRate))],
-            [S.periods.stopped, ...col((m) => (m.runStatusUnconfirmed ? S.periods.rateUnconfirmed : `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`))]]),
+          // client rules 2026-10-21: 定時 LINE 読取, 日次配送 and 5 分巡回 are separate states - one row each, never merged
+          [S.periods.patrolRate, ...col((m) => rateCell(m.patrolRate))],
+          [S.periods.dailyRate, ...col((m) => rateCell(m.dailyRate, m.runUnconfirmedKinds?.daily === false ? S.periods.runUnconfirmed : S.periods.dailyUnconnected))],
+          [S.periods.stopped, ...col((m) => (m.runStatusUnconfirmed ? h('span', { class: 'muted' }, S.periods.runUnconfirmed) : `${m.stopped.missing}／${m.stopped.blocked}／${m.stopped.unknown}`))],
+          // no per-run 5-min / reply evidence yet: 未集計, never 0% (rules §4, §6-3)
+          [S.periods.fiveMinRate, ...col(() => h('span', { class: 'muted' }, S.periods.notTallied))],
           [S.periods.questions, ...col((m) => h('span', null, `${m.questionsSent}`, m.questionsIncomplete && h('span', { class: 'sub' }, S.questionsIncompleteShort)))],
           [S.periods.response, ...col((m) => responseCell(m.responseRate))],
           [S.periods.answerTime, ...col((m) => timeCell(m.timeToAnswer))],

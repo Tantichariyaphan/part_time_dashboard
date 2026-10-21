@@ -29,11 +29,19 @@ export const pendingStatus = (scheduledMs, now) => (now >= scheduledMs ? 'awaiti
  * never counted as success, failure or missing). Run rows are not read at all in that mode.
  * @returns {{items: object[], unconfirmedSchedule: {slot:boolean, daily:boolean}, unconfirmedStatus: boolean}}
  */
-export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUnconfirmed = false }) {
+export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUnconfirmed = false, noRowStatus = 'no_row', judgedFrom = null }) {
   const scope = scopeOf(store);
   const consistency = day === currentDay ? scheduleConsistency(store, schedules, day) : { slot: true, daily: true };
   const unconfirmedSchedule = { slot: scope.slot && !consistency.slot, daily: scope.daily && !consistency.daily };
-  if (statusUnconfirmed) {
+  // per kind since the client rules of 2026-10-21 (a kind is judged once its evidence is connected); a boolean = both kinds
+  const unc = typeof statusUnconfirmed === 'object' && statusUnconfirmed ? statusUnconfirmed : { slot: !!statusUnconfirmed, daily: !!statusUnconfirmed };
+  if (unc.slot !== unc.daily) {
+    const part = (kind) => dayRuns({ store, schedules, runs: runs.filter((r) => r.kind === kind), day, now, currentDay, statusUnconfirmed: unc[kind], noRowStatus, judgedFrom });
+    const a = part('slot'); const b = part('daily');
+    const items = [...a.items.filter((i) => i.kind === 'slot'), ...b.items.filter((i) => i.kind === 'daily')].sort((x, y) => y.scheduledMs - x.scheduledMs);
+    return { items, unconfirmedSchedule, unconfirmedStatus: false, unconfirmedKinds: unc };
+  }
+  if (unc.slot) {
     const items = [];
     for (const kind of ['slot', 'daily']) {
       if (!scope[kind] && !expectedRuns(store, schedules, kind, day).length) continue;
@@ -44,7 +52,7 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
       }
     }
     items.sort((a, b) => b.scheduledMs - a.scheduledMs);
-    return { items, unconfirmedSchedule, unconfirmedStatus: true };
+    return { items, unconfirmedSchedule, unconfirmedStatus: true, unconfirmedKinds: unc };
   }
   const mine = runs.filter((r) => r.store === store.store);
   const used = new Set();
@@ -55,6 +63,12 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
     if (unconfirmedSchedule[kind]) continue; // do not pick a schedule on our own
     for (const e of expectedRuns(store, schedules, kind, day)) {
       const row = mine.find((r) => r.kind === kind && parseMs(r.scheduled_at) === e.at);
+      const dlOf = deadlineMin(store, kind);
+      if (judgedFrom?.[kind] != null && e.at < judgedFrom[kind]) { // before the current rule: not judged (old rule, §3)
+        const due = now >= e.at + (dlOf ?? 0) * 60000;
+        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'unconfirmed' : pendingStatus(e.at, now), derived: 'before_rule' });
+        continue;
+      }
       if (row) {
         used.add(row.run_id);
         const eff = effectiveRunStatus(row, store, now);
@@ -62,7 +76,7 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
       } else {
         const dl = deadlineMin(store, kind);
         const due = now >= e.at + (dl ?? 0) * 60000;
-        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? 'no_row' : pendingStatus(e.at, now), derived: null });
+        items.push({ kind, scheduledMs: e.at, time: e.time, row: null, status: due ? noRowStatus : pendingStatus(e.at, now), derived: null });
       }
     }
   }
@@ -75,11 +89,12 @@ export function dayRuns({ store, schedules, runs, day, now, currentDay, statusUn
     items.push({ kind: row.kind, scheduledMs: at, time: null, row, status: eff.status, derived: eff.derived });
   }
   items.sort((a, b) => b.scheduledMs - a.scheduledMs);
-  return { items, unconfirmedSchedule, unconfirmedStatus: false };
+  return { items, unconfirmedSchedule, unconfirmedStatus: false, unconfirmedKinds: unc };
 }
 
 /** Statuses that count in the success-rate denominator: scheduled runs, excluding in-progress / not yet due. */
 export const IN_PROGRESS = new Set(['running', 'not_due', 'awaiting']);
 /** Listed but not judged (Q-49): excluded from every rate and every failure count. */
-export const NOT_JUDGED = new Set(['unconfirmed']);
+// no_evidence: judged from the client's records, but no record for this run - 未確認（記録なし）, never 未実行 (rules 2026-10-21 §2.3)
+export const NOT_JUDGED = new Set(['unconfirmed', 'no_evidence']);
 export const SUCCESS = new Set(['ok', 'silent_ok', 'late']);
