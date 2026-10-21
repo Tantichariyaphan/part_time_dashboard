@@ -25,7 +25,7 @@ function RowList(key, label, rows, ctx, full) {
 function UpdateDetail(u, ctx) {
   const r = rowListSummary(u.detail);
   if (!r) return h('span', { class: 'sub' }, u.detail);
-  const label = isIdDamageText(r.head) ? S.collapse.idDamaged(r.rows.length) : `${r.head}：${S.collapse.rowsShort(r.rows.length)}`;
+  const label = `${isIdDamageText(r.head) ? S.collapse.idDamaged(r.rows.length) : `${r.head}：${S.collapse.rowsShort(r.rows.length)}`}${r.tail ? `（${r.tail}）` : ''}`;
   return h('span', { class: 'sub' }, RowList(`ud:${u.tab}`, label, r.rows, ctx, u.detail));
 }
 

@@ -98,8 +98,10 @@ only), `meta`; the heartbeat sheet has `beats`, `alerts`.
 | S1 | Production | logged out | browser (screenshot 2026-10-20 10:33) + `check:access` groups A–C, E (2026-10-21 06:34Z) | sign-in screen; every `/api/live/*` and `/api/demo/*` 401 without data; no key markers in the page and 27 scripts/styles; POST/PUT/DELETE 405 | as expected (50 checks) | PASS |
 | S2 | Production | signed in, not on the allowlist (PIATEC staff account) | sign in | 403, no data | 「アクセス権がありません」 (screenshot 2026-10-20 10:35) | PASS (screen) |
 | S3 | Production | allowlisted (client) | sign in | data shown | client reported real data and 心拍 08:47 matching the sheet (2026-10-21 09:07) | PASS (client) |
-| S4 | Preview | any | open a Preview deployment URL in incognito and signed in; `/api/live/*` | no real data (Vercel protection or 未接続) | not run | **未確認** |
-| S5 | Preview | none | `check:access` group D | preview answers and refuses | **run 2026-10-21 was invalid**: `--preview` was the placeholder `https://<preview URL>`, every request got no answer (HTTP 0) and the script counted that as PASS. Script fixed (placeholder rejected; no answer = FAIL) | **未確認** — rerun with the real Preview URL |
+| S4 | Preview | logged out | `check:access` group D against two Preview deployments (`…-mzuh8v28v-…`, `…-rnadlxe8x-…`), 2026-10-21 07:17Z / 07:32Z | refused, no data | the Preview answers **302** (Vercel Deployment Protection → Vercel sign-in) on `/` and every `/api/live/*`; no data | PASS |
+| S5 | Production + Preview | none | `check:access` full run 2026-10-21 07:32Z (fixed script: placeholder refused, no answer = FAIL) | all PASS | **56 / 56 PASS** (the earlier 06:34Z run with the placeholder is void) | PASS |
+| S7 | Preview | Vercel team member past the protection | code guard `VERCEL_ENV≠production` → 未接続 (`not_production_deployment`); source variables set for Production only | no data | guard: PASS (SYN, LIVE-PREVIEW); Vercel variable scope: screenshot of the Environment Variables page still to attach | partly 未確認 |
+| S8 | Production | — | `/app/strings.ja.js` contains `fiveMinEvidenceNote` (2026-10-21) | the 10/21 version is deployed | `True` | PASS |
 | S6 | Code | — | `VERCEL_ENV≠production` never reads the client files (`tests/live-only.test.js` LIVE-PREVIEW); no key in Git history (audit 10/19) | — | — | PASS (SYN / audit) — not a substitute for S4 / S5 |
 
 ## Phase F — reconciliation of 2026-10-20

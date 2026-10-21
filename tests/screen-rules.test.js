@@ -186,6 +186,10 @@ test('SCREEN-12 ⑥ a long row-number list is folded to 「ID破損 N行」, the
   assert.ok(isIdDamageText(r.head));
   assert.equal(S.collapse.idDamaged(r.rows.length), 'ID破損 36行');
   assert.equal(rowListSummary('警告: 行 1,2,3'), null, 'short lists are shown as they are');
+  // the live text (2026-10-21) has a sentence after the list
+  const live = rowListSummary(`${text}。このIDを使う回答の紐付け・集計は未確認`);
+  assert.equal(live.rows.length, 36);
+  assert.equal(live.tail, 'このIDを使う回答の紐付け・集計は未確認');
   assert.equal(rowListSummary('ok'), null);
   assert.equal(isIdDamageText('読み取り遅延'), false);
   assert.match(page('machines.js'), /open && h\('span', \{ class: 'sub rowlist' \}, full\)/);

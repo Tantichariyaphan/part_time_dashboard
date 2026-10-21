@@ -17,3 +17,6 @@ Claude outputs/
 *.p12
 *credentials*.json
 *service-account*.json
+
+.vercel
+.env*

@@ -64,11 +64,12 @@ export function kindCounts(items) {
  */
 export function rowListSummary(text, min = 6) {
   if (typeof text !== 'string') return null;
-  const m = /^(.*?)\s*[:：]?\s*(?:行|rows?)\s*[:：]?\s*([\d][\d\s,，、]*\d)\s*(?:[…\.]{1,3}|など|ほか)?\s*$/su.exec(text);
+  // the list may be followed by a sentence (live meta detail 2026-10-21: "…: 行 670,…,23067。このIDを使う…は未確認")
+  const m = /^(.*?)\s*[:：]?\s*(?:行|rows?)\s*[:：]?\s*([\d][\d\s,，、]*\d)\s*(?:[…\.]{1,3}|など|ほか)?\s*(?:[。.]\s*(.*))?$/su.exec(text);
   if (!m) return null;
   const rows = m[2].split(/[\s,，、]+/).filter(Boolean);
   if (rows.length < min) return null;
-  return { head: m[1].replace(/[\s:：]+$/u, ''), rows };
+  return { head: m[1].replace(/[\s:：]+$/u, ''), rows, tail: (m[3] ?? '').trim() || null };
 }
 
 /** The head of a row-number list that talks about damaged / rounded long ids. */
