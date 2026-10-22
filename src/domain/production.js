@@ -98,7 +98,10 @@ export function fiveMinCheck(store, patrol, beats, now) {
   const win = parseWindow(store.text_patrol);
   const p = localParts(now, store.timezone);
   const startMs = zonedInstant(dateString(p.y, p.mo, p.d), win.start, store.timezone);
-  const rows = patrol.filter((r) => r.host === store.production_host && Number.isFinite(parseMs(r.at)) && parseMs(r.at) <= now);
+  // the client's run_fast_patrol is the production machine's own record (no host column): host null = production. Rows the
+  // client marks outside_hours are not runs inside the window.
+  const rows = patrol.filter((r) => (r.host == null || r.host === store.production_host) && r.status !== 'outside_hours'
+    && Number.isFinite(parseMs(r.at)) && parseMs(r.at) <= now);
   const last = rows.reduce((best, r) => (!best || parseMs(r.at) > parseMs(best.at) ? r : best), null);
   if (!last) return { state: 'unknown', reason: 'no_production_patrol_row', evidence: true };
   const lastMs = parseMs(last.at);
@@ -106,7 +109,9 @@ export function fiveMinCheck(store, patrol, beats, now) {
   const out = { evidence: true, lastRunMs: lastMs, lastRunAt: formatIso(lastMs), minutesAgo: minutesBetween(lastMs, now), silentMin,
     stopDetected: silentMin > FIVE_MIN_STOP_MINUTES, issues: last.issues, audit_issues: last.audit_issues };
   if (silentMin > LIGHT_CHECK_RED_MINUTES) return { ...out, state: 'red' };
-  const clean = last.send === true && last.issues === 0 && last.audit_issues === 0 && last.google_beat === true;
+  // the client's status decides (ok = send / issues / audit_issues / google_beat all clean, definition 2/4); never upgraded
+  const clean = (last.status == null || last.status === 'ok') && last.send !== false && last.issues !== null && last.issues === 0
+    && last.audit_issues === 0 && last.google_beat === true;
   if (!clean) return { ...out, state: 'issue' };
   if (last.owner !== 'new') return { ...out, state: 'owner_unconfirmed' };
   return { ...out, state: 'confirmed' };

@@ -1,3 +1,5 @@
+> **2026-10-22: superseded.** The client defined its own tabs `run_line_read` / `run_fast_patrol` / `run_daily_delivery` and columns; the code follows the client's definition (`src/contract/evidenceContract.js`). Kept as history.
+
 # 実行記録の写し（3 タブ）— PIATEC からの形式案
 
 対象：NIKUSHO 閲覧用の写し（v1）に追加していただく 3 タブ（判定ルール 2026-10-21 §6-5・§7「発注者側 CODE・Codex」分担）

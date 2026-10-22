@@ -3,6 +3,21 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-22 — the client's evidence tabs (hotfix: copy refused with `unexpected_tabs`)
+
+- The client added `run_line_read` / `run_fast_patrol` / `run_daily_delivery` (10/22 10:14) with its own column definition
+  (「PIATEC 実行記録の列定義」 1/4–4/4). The reader and the contract check knew only PIATEC's proposed names, so the whole copy
+  was refused (`unexpected_tabs`) and the screen stopped. Now the reader requests these tabs and the checks accept them and
+  their meta rows.
+- `src/contract/evidenceContract.js` / `src/adapters/copy/evidence.js` follow the client's definition: one column set for all
+  tabs; the client's `status` is used as given (ok / late / blocked / unknown / missing / scheduled / pending / outside_hours),
+  never upgraded; `missing` is 未実行 only with `source_complete=true` after the deadline, otherwise 未確認（記録なし）;
+  daily routes from `kind` (01_staff_all / 02_owner_line / 03_owner_email), per-route SHA may differ (by design); a meta row
+  `error` (e.g. owner check failed) means the tab is not used; `detail` is shown only when it is a fixed code.
+- 5 分巡回: rows have no host column (the production machine's own record); `outside_hours` rows are ignored; 動作確認 only for
+  `status=ok` with `owner=new`.
+- Tests EV-1…EV-8 and OPS-3 rewritten to the client's contract. 253 tests, synthetic data only.
+
 ## Unreleased — 2026-10-21 (b) — evidence connection (Iida-san: 「そのまま進めてください」)
 
 - New optional copy tabs `定時読取` / `5分巡回` / `日次配送` (client minimum columns §6-5; tab names and values: PIATEC proposal,

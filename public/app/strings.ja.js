@@ -87,10 +87,10 @@ export const S = {
   evidenceReason: {
     conflicting_records: '記録が矛盾', no_finish_time: '終了時刻の記録なし', unrecognized_status: '未知の状態値', failure_recorded: '失敗の記録あり',
     unknown_route: '未知の経路', body_changed: '送信後に本文が変更', body_change_unknown: '本文変更の有無が不明', no_body_hash: '本文 SHA なし',
-    body_mismatch: '経路間で本文 SHA が不一致', route_without_record: '記録のない経路あり', no_attempt_time: '送信時刻の記録なし',
+    body_mismatch: '経路間で本文 SHA が不一致', route_without_record: '記録のない経路あり（未実行とは判定しません）', no_attempt_time: '送信時刻の記録なし',
   },
   route: { staff_all_line: 'ALL LINE', owner_line: '丸 LINE', owner_email: '丸メール' },
-  routeStatus: { sent: '受付', unknown: '結果不明', blocked: '停止', none: '記録なし' },
+  routeStatus: { ok: '受付', late: '遅れて受付', sent: '受付', unknown: '結果不明', blocked: '停止', missing: '記録なし', scheduled: '予定', none: '記録なし' },
   routeNote: '送信口での受付の記録です。受信・閲覧の確認ではありません。',
   runKindUnconfirmed: {
     slot: '定時 LINE 読取：発注者側の読取記録がまだ接続されていないため「未確認」です。',
@@ -197,7 +197,7 @@ export const S = {
     tabState: { ok: '合格', blocked: '停止' }, rows: (n) => `${n}行`, findings: (n) => `指摘 ${n}件`,
     replies: (c, a, u) => `返信の紐付け：確定 ${c}／特定不可 ${a}／紐付けなし ${u}`,
     validatedOnly: '検証のみ（GAS の旧心拍：成功・失敗の判定には使いません）', row: '元の行番号', rowPos: 'シート行',
-    evidence: '実行記録（発注者側の匿名化した写し）', evidenceState: { absent: '未接続', ok: '接続中', blocked: '停止（契約チェック不合格）', stale: '更新遅延（使用しません）' },
+    evidence: '実行記録（発注者側の匿名化した写し）', evidenceState: { absent: '未接続', ok: '接続中', blocked: '停止（契約チェック不合格）', stale: '更新遅延（使用しません）', error: '発注者側でエラー（使用しません）' },
     warnings: (n) => `注意 ${n}件（表示は継続）`,
   },
   periods: {

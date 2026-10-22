@@ -51,21 +51,25 @@ test('OPS-3 with the client evidence tabs: per-slot status, daily routes, 5-min 
   const { EVIDENCE_TAB } = await import('../src/contract/evidenceContract.js');
   const copy = copyRead();
   const tbl = (header, rows) => ({ header, rows: rows.map((r) => header.map((h) => r[h] ?? '')) });
-  copy.tables[EVIDENCE_TAB.slot] = tbl(['run_id', 'scheduled_at', 'started_at', 'finished_at', 'source_complete', 'status', 'reason'], [
-    { run_id: 'a', scheduled_at: at('2026-10-20T12:00:00'), finished_at: at('2026-10-20T12:04:00'), status: 'ok', source_complete: 'TRUE' },
-    { run_id: 'b', scheduled_at: at('2026-10-20T22:00:00'), status: 'fail', reason: 'safety stop secret', source_complete: 'TRUE' }]);
-  copy.tables[EVIDENCE_TAB.daily] = tbl(['business_date', 'route', 'attempted_at', 'status', 'body_sha256', 'body_changed_after_attempt'],
-    ['staff_all_line', 'owner_line', 'owner_email'].map((route) => ({ business_date: '2026-10-20', route, attempted_at: at('2026-10-21T00:32:00'), status: 'sent', body_sha256: 'c'.repeat(64), body_changed_after_attempt: 'FALSE' })));
-  copy.tables[EVIDENCE_TAB.patrol] = tbl(['at', 'host', 'send', 'issues', 'audit_issues', 'google_beat', 'owner'], [
-    { at: at('2026-10-20T12:00:00'), host: 'h1', send: 'TRUE', issues: '0', audit_issues: '0', google_beat: 'ok', owner: 'new' },
-    { at: at('2026-10-20T12:05:00'), host: 'h1', send: 'TRUE', issues: '1', audit_issues: '0', google_beat: 'ok', owner: 'new' },
-    { at: at('2026-10-20T12:05:00'), host: 'h2', send: 'TRUE', issues: '0', audit_issues: '0', google_beat: 'ok', owner: 'new' }]);
+  const H = ['record_key', 'business_date', 'kind', 'scheduled_at', 'started_at', 'finished_at', 'status', 'count', 'ref', 'detail', 'owner',
+    'source_complete', 'send', 'issues', 'audit_issues', 'google_beat', 'body_sha256', 'body_changed_after_attempt'];
+  copy.tables[EVIDENCE_TAB.slot] = tbl(H, [
+    { record_key: 'a', business_date: '2026-10-20', kind: 'line_read', scheduled_at: at('2026-10-20T12:00:00'), finished_at: at('2026-10-20T12:03:05'), status: 'ok', source_complete: 'true' },
+    { record_key: 'b', business_date: '2026-10-20', kind: 'line_read', scheduled_at: at('2026-10-20T22:00:00'), status: 'blocked', detail: 'safety stop secret', source_complete: 'true' }]);
+  copy.tables[EVIDENCE_TAB.daily] = tbl(H, ['01_staff_all', '02_owner_line', '03_owner_email'].map((kind, i) => ({ record_key: `d${i}`, business_date: '2026-10-20', kind,
+    started_at: at('2026-10-21T00:32:26'), status: 'ok', body_sha256: String(i + 1).repeat(64), body_changed_after_attempt: 'false', source_complete: 'false' })));
+  copy.tables[EVIDENCE_TAB.patrol] = tbl(H, [
+    { record_key: 'p1', started_at: at('2026-10-20T12:00:00'), status: 'ok', owner: 'new', send: 'true', issues: '0', audit_issues: '0', google_beat: 'true' },
+    { record_key: 'p2', started_at: at('2026-10-20T12:05:00'), status: 'blocked', owner: 'new', send: 'true', issues: '1', audit_issues: '0', google_beat: 'true' }]);
   copy.titles.push(...Object.values(EVIDENCE_TAB));
   const o = await opsReconcile({ copy, heartbeat: null, adapterConfig: cfg, day: '2026-10-20', now: Date.parse(at('2026-10-21T09:00:00')) });
   assert.deepEqual(o.scheduledReads.map((s) => [s.slot, s.screen]), [['12:00', 'ok'], ['17:00', 'no_evidence'], ['22:00', 'blocked']]);
   assert.equal(o.dailyDelivery.screen, 'ok');
-  assert.deepEqual(o.dailyDelivery.routes.map((r) => r.status), ['sent', 'sent', 'sent']);
-  assert.deepEqual(o.fiveMinutePatrol.evidenceRows, { rows: 2, clean: 1, ownerNew: 2, ownerMissing: 0, otherHostsIgnored: 1 });
+  assert.deepEqual(o.dailyDelivery.routes.map((r) => r.status), ['ok', 'ok', 'ok']);
+  const e = o.fiveMinutePatrol.evidenceRows;
+  assert.deepEqual([e.rows, e.clean, e.ownerNew, e.ownerMissing, e.otherHostsIgnored], [2, 1, 2, 0, 0]);
+  assert.deepEqual(e.statusCounts, { ok: 1, blocked: 1 });
+  assert.deepEqual(e.gapsOver20, ['10:00-12:00', '12:05-00:00'], 'gaps of the saved runs inside 10:00-24:00 (the screen judges 15 / 20 min)');
   const lines = [];
   const orig = console.log; console.log = (...a) => lines.push(a.join(' '));
   try { print(o); } finally { console.log = orig; }

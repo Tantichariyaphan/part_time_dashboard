@@ -122,9 +122,16 @@ export async function opsReconcile({ copy, heartbeat, adapterConfig, day, now })
   five.evidenceReadable = !!ctx.evidence?.patrol;
   if (ctx.evidence?.patrol && winText) { // client per-run records: counts for the production host inside the window
     const ws = zonedInstant(day, winText.start, store.timezone); const we = zonedInstant(day, winText.end, store.timezone);
-    const mine = ctx.evidence.patrol.filter((r) => r.host === store.production_host && parseMs(r.at) >= ws && parseMs(r.at) < we);
-    five.evidenceRows = { rows: mine.length, clean: mine.filter((r) => r.send === true && r.issues === 0 && r.audit_issues === 0 && r.google_beat === true).length,
-      ownerNew: mine.filter((r) => r.owner === 'new').length, ownerMissing: mine.filter((r) => r.owner == null).length, otherHostsIgnored: ctx.evidence.patrol.filter((r) => r.host !== store.production_host).length };
+    const prodRow = (r) => r.host == null || r.host === store.production_host; // run_fast_patrol has no host column: the production record
+    const mine = ctx.evidence.patrol.filter((r) => prodRow(r) && r.status !== 'outside_hours' && parseMs(r.at) >= ws && parseMs(r.at) < we);
+    const statusCounts = {};
+    for (const r of mine) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+    const pts = [ws, ...mine.map((r) => parseMs(r.at)).sort((x, y) => x - y), Math.min(we, now)];
+    let maxGap = 0; const over20 = [];
+    for (let i = 1; i < pts.length; i += 1) { const g = Math.round((pts[i] - pts[i - 1]) / MIN); maxGap = Math.max(maxGap, g); if (g > FIVE_MIN_STOP_MINUTES) over20.push(`${hm(pts[i - 1])}-${hm(pts[i])}`); }
+    five.evidenceRows = { rows: mine.length, clean: mine.filter((r) => r.status === 'ok' && r.send !== false && r.issues === 0 && r.audit_issues === 0 && r.google_beat === true).length,
+      ownerNew: mine.filter((r) => r.owner === 'new').length, ownerMissing: mine.filter((r) => r.owner == null).length, otherHostsIgnored: ctx.evidence.patrol.filter((r) => !prodRow(r)).length,
+      statusCounts, longestGapMin: maxGap, gapsOver20: over20 };
     five.screenNow = fiveMinCheck(store, ctx.evidence.patrol, ctx.screen.beats, now).state;
   }
   out.fiveMinutePatrol = five;

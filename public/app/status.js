@@ -14,7 +14,7 @@ export const runTone = (k) => RUN_TONE[k] ?? 'tone-unknown';
 export const runLabel = (k, kind) => (k === 'unconfirmed' && kind === 'daily' ? S.run.unconfirmedDaily : S.runByKind[kind]?.[k] ?? S.run[k] ?? S.unknown);
 /** Reason codes produced from the client's evidence -> words; a client-written reason is shown as it is. */
 export const reasonText = (r) => (r == null ? null : S.evidenceReason[r] ?? r);
-const ROUTE_TONE = { sent: 'tone-ok', unknown: 'tone-unknown', blocked: 'tone-blocked', none: 'tone-neutral' };
+const ROUTE_TONE = { ok: 'tone-ok', late: 'tone-late', sent: 'tone-ok', unknown: 'tone-unknown', blocked: 'tone-blocked', missing: 'tone-neutral', scheduled: 'tone-wait', none: 'tone-neutral' };
 export const routeTone = (k) => ROUTE_TONE[k] ?? 'tone-unknown';
 
 // Question state colours (REQ §6-④): waiting=red, candidate=yellow, acked=yellow, answered=green, closed=grey
