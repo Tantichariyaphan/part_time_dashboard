@@ -99,7 +99,7 @@ export function createCopyAdapter({ config, copyReader, heartbeatReader, now = D
       connected: true,
       evidence: { judged: ev.judged, patrol: ev.patrol },
       source: {
-        state, reason: null, readAt: formatIso(c.readAt), evidenceTabs: ev.report,
+        state, reason: null, readAt: formatIso(c.readAt), evidenceTabs: ev.report, unsupportedTabs: v.unsupportedTabs ?? [],
         copyFindingCount: v.copyFindingCount, copyFindings: v.copyFindings.slice(0, 10),
         metaTab: { tab: COPY_TAB.meta, state: v.meta.ok ? 'ok' : 'blocked', findingCount: v.meta.findingCount, findings: v.meta.findings.slice(0, 10) },
         ...report,

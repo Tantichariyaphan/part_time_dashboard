@@ -202,8 +202,9 @@ function validateMeta(table, timezone) {
   const result = newTabResult(COPY_TAB.meta);
   const perTab = {};
   const evidence = {};
+  const unknownTabs = [];
   let selfRow = false;
-  if (!checkHeader(result, table, COPY_COLUMNS.meta, { exactOrder: true })) return { result, perTab, evidence };
+  if (!checkHeader(result, table, COPY_COLUMNS.meta, { exactOrder: true })) return { result, perTab, evidence, unknownTabs };
   const records = toRecords(result, table, null);
   const names = Object.fromEntries(COPY_DATA_TAB_KEYS.map((k) => [COPY_TAB[k], k]));
   for (const rec of records) {
@@ -220,7 +221,8 @@ function validateMeta(table, timezone) {
       continue;
     }
     const key = names[rec.tab.trim()];
-    if (!key) { note(result, null, 'tab', 'unexpected_meta_tab'); continue; }
+    // a meta row for a tab outside the list: ignored and reported (client approval 2026-10-22), never used
+    if (!key) { warn(result, null, 'tab', 'unexpected_meta_tab'); unknownTabs.push(safeTabName(rec.tab)); continue; }
     if (perTab[key]) { note(result, null, 'tab', 'duplicate_meta_row'); continue; }
     const problems = [];
     if (rec.contract_version.trim() !== COPY_CONTRACT_VERSION) problems.push(['contract_version', 'contract_version']);
@@ -229,7 +231,13 @@ function validateMeta(table, timezone) {
     perTab[key] = { record: rec, problems };
   }
   result.records = result.ok ? records : [];
-  return { result, perTab, evidence };
+  return { result, perTab, evidence, unknownTabs: [...new Set(unknownTabs)] };
+}
+
+/** A sheet title for display on ⑥: shown as written unless it looks like an id, a URL or is overly long. */
+function safeTabName(name) {
+  const s = cell(name).trim();
+  return !s || s.length > 60 || LINE_ID.test(s) || URL.test(s) ? '(名前非表示)' : s;
 }
 
 /**
@@ -242,9 +250,12 @@ export function validateCopy(read, { timezone = null } = {}) {
   const copy = newTabResult('(copy)');
   const tables = read?.tables ?? {};
   const known = new Set([...Object.values(COPY_TAB), ...Object.values(EVIDENCE_TAB)]); // run-evidence tabs are optional
-  if (Array.isArray(read?.titles)) for (const t of read.titles) if (!known.has(String(t))) note(copy, null, null, 'unexpected_tab');
+  // client approval 2026-10-22: a tab outside the list is skipped (never read) and listed, it no longer blocks the copy
+  const unsupportedTabs = [];
+  if (Array.isArray(read?.titles)) for (const t of read.titles) if (!known.has(String(t))) unsupportedTabs.push(safeTabName(t));
 
-  const { result: meta, perTab, evidence: evidenceMeta } = validateMeta(tables[COPY_TAB.meta], timezone);
+  const { result: meta, perTab, evidence: evidenceMeta, unknownTabs } = validateMeta(tables[COPY_TAB.meta], timezone);
+  for (const t of unknownTabs) if (!unsupportedTabs.includes(t)) unsupportedTabs.push(t);
   if (!meta.ok) note(copy, null, null, 'meta_invalid');
 
   const tabs = {};
@@ -257,7 +268,7 @@ export function validateCopy(read, { timezone = null } = {}) {
     if (!r.ok) r.records = [];
     tabs[key] = { ...r, meta: m?.record ?? null };
   }
-  return { ok: copy.ok, copyFindings: copy.findings, copyFindingCount: copy.findingCount, meta, tabs, evidenceMeta };
+  return { ok: copy.ok, copyFindings: copy.findings, copyFindingCount: copy.findingCount, meta, tabs, evidenceMeta, unsupportedTabs };
 }
 
 /** Machine Heartbeat Spreadsheet: tabs `beats` and `alerts` with the REQ §5-3 columns (order not fixed by REQ). */

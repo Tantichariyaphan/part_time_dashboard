@@ -54,7 +54,8 @@ test('LIVE-2 production without any source configuration: live entry = client co
   assert.equal(entry.data.adapterKind, 'copy');
   assert.equal(entry.data.sources.copy.state, 'NOT_CONNECTED');
   assert.equal(entry.freshness.state, 'stopped');
-  assert.deepEqual(res['all-stores'].body.data.stores.map((s) => [s.store, s.connection]), [['NIKUSHO_BANGNA', 'not_connected']], 'shipped stores, all 未接続');
+  assert.deepEqual(res['all-stores'].body.data.stores.map((s) => [s.store, s.connection]),
+    [['NIKUSHO_BANGNA', 'not_connected'], ['HAYABUSA_MEIEKI', 'not_connected'], ['HAYABUSA_OSU', 'not_connected']], 'shipped stores, all 未接続');
 });
 
 test('LIVE-3 production refuses NIKUSHO_LIVE_ADAPTER=devmock / none / demo: an error state, never mock records', async () => {

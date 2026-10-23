@@ -42,7 +42,10 @@ export function createLiveReaders(env = process.env, { getAccessToken: injected,
     cfg,
     // Two separate readers, one per client file; the same reader account; ids only from server configuration.
     copyReader: createSheetsReader({
-      spreadsheetId: cfg.copySpreadsheetId, tabs: [...Object.values(COPY_TAB), ...Object.values(EVIDENCE_TAB)], requiredTabs: [COPY_TAB.meta], exactTabs: true, // evidence tabs optional (rules 2026-10-21)
+      // client approval 2026-10-22 (proposal 1): a tab outside this list is not requested (its cells are never downloaded) and no
+      // longer fails the read; it is listed on ⑥ as 未対応のタブ. meta stays required, forbidden headers are still refused, and a
+      // missing core tab still blocks that tab and stops the screen (validateCopy + freshness, unchanged).
+      spreadsheetId: cfg.copySpreadsheetId, tabs: [...Object.values(COPY_TAB), ...Object.values(EVIDENCE_TAB)], requiredTabs: [COPY_TAB.meta], exactTabs: false,
       refuseHeaders: FORBIDDEN_FIELDS, getAccessToken, ...t,
     }),
     heartbeatReader: createSheetsReader({

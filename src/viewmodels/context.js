@@ -66,6 +66,7 @@ export function publicSources(ctx) {
       tabs: tabs(c.metaTab ? [...(c.tabs ?? []), c.metaTab] : c.tabs),
       copyFindingCount: c.copyFindingCount ?? 0, copyFindings: (c.copyFindings ?? []).map((f) => ({ problem: f.problem })),
       replyLinks: c.replyLinks ?? null, unclassified: c.unclassified ?? null, collapsedMessageRows: c.collapsedMessageRows ?? null,
+      unsupportedTabs: c.unsupportedTabs ?? [], // names only; their cells are never read
     },
     heartbeat: { state: h.state ?? 'NOT_CONNECTED', reason: h.reason ?? null, readAt: h.readAt ?? null, tabs: tabs(h.tabs) },
     runStatus: ctx.limits?.runStatus ?? null, runStatusByKind: ctx.limits?.runStatusByKind ?? null,

@@ -81,7 +81,11 @@ function Sources(src, ctx) {
       s.reason && h('span', { class: 'small muted' }, s.reason)),
     s.readAt && h('div', { class: 'small muted' }, `${T.readAt} ${mdhm(s.readAt)}`),
     (s.tabs ?? []).map(tabRow),
-    s.replyLinks && h('div', { class: 'small muted' }, T.replies(s.replyLinks.confirmed, s.replyLinks.ambiguous, s.replyLinks.unlinked)));
+    s.replyLinks && h('div', { class: 'small muted' }, T.replies(s.replyLinks.confirmed, s.replyLinks.ambiguous, s.replyLinks.unlinked)),
+    // client approval 2026-10-22: tabs outside the list are skipped (contents not read) and listed here
+    (s.unsupportedTabs ?? []).length > 0 && h('div', { class: 'row-top small' }, h('b', null, T.unsupported),
+      StatusBadge('tone-unknown', T.unsupportedCount(s.unsupportedTabs.length), { compact: true }),
+      h('span', null, s.unsupportedTabs.join('、')), h('span', { class: 'muted' }, T.unsupportedNote)));
   // client run-evidence tabs (rules 2026-10-21): absent = 未接続, the matching state stays 未確認
   const ev = (src.evidenceTabs ?? []).length > 0 && h('div', { class: 'row' },
     h('div', { class: 'row-top' }, h('b', null, T.evidence)),

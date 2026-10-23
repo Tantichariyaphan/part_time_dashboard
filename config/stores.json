@@ -2,6 +2,7 @@
   "_note": "Bangkok configuration for NIKUSHO_LIVE_ADAPTER=copy (NIKUSHO_STORES_FILE). CONFIRMED by the client 2026-10-07: slot history, daily 00:35, production_host snowmaru. PROVISIONAL until the client confirms (listed in _provisional): values taken from REQ examples / samples.",
   "_provisional": ["stores.store", "stores.display_name", "stores.business_day_start", "stores.text_patrol", "schedules daily valid_from"],
   "_confirmed_2026_10_21": "slot_deadline_min 90 / daily_deadline_min 60 stated by the client as the current instruction values (rules 2026-10-21 §2); values unchanged",
+  "_nagoya_2026_10_22": "HAYABUSA_MEIEKI / HAYABUSA_OSU: shown as 未接続 on ① (client approval 2026-10-22). No copy, no schedules, no deadlines, no production host; business_day_start left blank (not given by the client). Excluded from every figure. Live data = Phase 2, separate quotation and approval.",
   "stores": [
     {
       "store": "NIKUSHO_BANGNA",
@@ -14,6 +15,32 @@
       "daily_time": "00:35",
       "text_patrol": "10:00-24:00",
       "production_host": "snowmaru",
+      "active": "yes"
+    },
+    {
+      "store": "HAYABUSA_MEIEKI",
+      "display_name": "麺屋はやぶさ 名駅店",
+      "timezone": "Asia/Tokyo",
+      "business_day_start": "",
+      "slot_times": "",
+      "slot_deadline_min": "",
+      "daily_deadline_min": "",
+      "daily_time": "",
+      "text_patrol": "",
+      "production_host": "",
+      "active": "yes"
+    },
+    {
+      "store": "HAYABUSA_OSU",
+      "display_name": "麺屋はやぶさ 大須店",
+      "timezone": "Asia/Tokyo",
+      "business_day_start": "",
+      "slot_times": "",
+      "slot_deadline_min": "",
+      "daily_deadline_min": "",
+      "daily_time": "",
+      "text_patrol": "",
+      "production_host": "",
       "active": "yes"
     }
   ],

@@ -3,6 +3,22 @@
 Deliverable REQ §3 #7 (change history). Newest first. Dates are Bangkok time. Commit ids refer to the repository's `main` branch.
 Test evidence for each change: `TEST_REPORT.md`; design decisions: `docs/implementation-notes.md`.
 
+## Unreleased — 2026-10-22 (b) — client approval of proposals 1 and 2 (Maru-san, 10/22 14:52)
+
+- **Proposal 1 — unsupported tabs:** a tab outside the supported list (5 core + 3 evidence tabs) is no longer fatal. The copy
+  reader runs with `exactTabs: false`: such a tab is never requested (its cells are never downloaded) and is listed on ⑥ as
+  「未対応のタブ（内容は取り込んでいません）」. A `meta` row for an unknown tab is ignored with a warning (was: copy blocked).
+  Titles that look like an id or a URL are shown as 「(名前非表示)」. **Unchanged safety line:** `meta` still required; a missing
+  core tab still blocks that tab and stops the screen; forbidden headers are still refused before rows are read.
+  An evidence tab that is missing, renamed (then listed as unsupported) or has meta `error` → that part 未確認; nothing from an
+  earlier read is kept (stateless rebuild; a failed read shows no data).
+- **Proposal 2 — Nagoya:** `config/stores.json` adds `HAYABUSA_MEIEKI / 麺屋はやぶさ 名駅店` and `HAYABUSA_OSU / 麺屋はやぶさ 大須店`
+  (Asia/Tokyo, active). No copy, no schedules, no deadlines, no production host; `business_day_start` left blank (not given by
+  the client; blank is accepted by the configuration check). Shown as 未接続 on ①, excluded from every figure. Bangkok row
+  unchanged and still first. Live data = Phase 2 (separate quotation and approval).
+- Tests: R2-1 … R2-6, R3-1 … R3-3 (new); COPY-5, COPY-5b, COPY-6 and LIVE-2 updated to the approved rule / shipped stores.
+  253 → 262, synthetic only. Headless UI review: no findings.
+
 ## Unreleased — 2026-10-22 — the client's evidence tabs (hotfix: copy refused with `unexpected_tabs`)
 
 - The client added `run_line_read` / `run_fast_patrol` / `run_daily_delivery` (10/22 10:14) with its own column definition

@@ -197,6 +197,7 @@ export const S = {
     tabState: { ok: '合格', blocked: '停止' }, rows: (n) => `${n}行`, findings: (n) => `指摘 ${n}件`,
     replies: (c, a, u) => `返信の紐付け：確定 ${c}／特定不可 ${a}／紐付けなし ${u}`,
     validatedOnly: '検証のみ（GAS の旧心拍：成功・失敗の判定には使いません）', row: '元の行番号', rowPos: 'シート行',
+    unsupported: '未対応のタブ', unsupportedCount: (n) => `${n}件`, unsupportedNote: '（内容は取り込んでいません）',
     evidence: '実行記録（発注者側の匿名化した写し）', evidenceState: { absent: '未接続', ok: '接続中', blocked: '停止（契約チェック不合格）', stale: '更新遅延（使用しません）', error: '発注者側でエラー（使用しません）' },
     warnings: (n) => `注意 ${n}件（表示は継続）`,
   },

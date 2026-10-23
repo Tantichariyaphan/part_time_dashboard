@@ -83,7 +83,7 @@ test('COPY-4 required columns: missing, unexpected, duplicated or re-ordered col
   }
 });
 
-test('COPY-5 meta structure: one row per tab, contract v1, readable last_read_at, no unknown tabs', async () => {
+test('COPY-5 meta structure: one row per tab, contract v1, readable last_read_at; a row for an unknown tab is ignored and listed', async () => {
   const metas = (over) => ['ログ', '送信ログ', 'AI質問追跡', '心拍'].map((t) => metaRow(t, over[t] ?? {}));
   let r = await adapterWith({ copy: copyRead({ meta: metas({ ログ: { contract_version: 'v2' } }) }) }).adapter.load();
   assert.equal(tabState(r, 'ログ'), 'blocked');
@@ -92,8 +92,11 @@ test('COPY-5 meta structure: one row per tab, contract v1, readable last_read_at
   assert.equal(tabState(r, '送信ログ'), 'blocked');
   r = await adapterWith({ copy: copyRead({ meta: [...metas({}), metaRow('ログ')] }) }).adapter.load();
   assert.equal(r.sources.copy.state, 'BLOCKED', 'duplicate meta row');
+  // client approval 2026-10-22: a meta row for an unknown tab no longer blocks the copy; it is ignored and listed on ⑥
   r = await adapterWith({ copy: copyRead({ meta: [...metas({}), metaRow('予約')] }) }).adapter.load();
-  assert.equal(r.sources.copy.state, 'BLOCKED', 'unknown tab in meta');
+  assert.equal(r.sources.copy.state, 'CONNECTED', 'unknown tab in meta: ignored');
+  assert.deepEqual(r.sources.copy.unsupportedTabs, ['予約']);
+  assert.equal(buildContext(r).screen.meta.length, 4, 'the unknown row is not used');
   r = await adapterWith({ copy: copyRead({ meta: metas({}).filter((m) => m.tab !== '心拍') }) }).adapter.load();
   assert.equal(tabState(r, '心拍'), 'blocked');
   assert.ok(problems(r).includes('no_meta_row'));
@@ -111,14 +114,19 @@ test('COPY-5b a meta row for the meta tab itself is accepted and not used for fr
   assert.equal(r.sources.copy.state, 'BLOCKED');
   assert.ok(problems(r).includes('duplicate_meta_row') || r.sources.copy.metaTab.findings.some((f) => f.problem === 'duplicate_meta_row'));
   r = await adapterWith({ copy: copyRead({ meta: [...metas, metaRow('予約')] }) }).adapter.load();
-  assert.equal(r.sources.copy.state, 'BLOCKED', 'other unknown names still block');
+  assert.equal(r.sources.copy.state, 'CONNECTED', 'other unknown names are ignored and listed (client approval 2026-10-22)');
+  assert.deepEqual(r.sources.copy.unsupportedTabs, ['予約']);
 });
 
-test('COPY-6 an unexpected tab in the copy blocks the whole copy (other tabs are never read)', async () => {
-  const read = copyRead(); read.titles.push('予約');
+// client approval 2026-10-22 (proposal 1) replaces the earlier "exactly 5 tabs" reading of Q-50
+test('COPY-6 an unexpected tab is skipped and listed; the copy keeps working', async () => {
+  const read = copyRead(); read.titles.push('予約'); read.tables['予約'] = { header: ['名前', '電話'], rows: [['LEAK-NAME', 'LEAK-PHONE']] };
   const r = await adapterWith({ copy: read }).adapter.load();
-  assert.equal(r.sources.copy.state, 'BLOCKED');
-  assert.equal(r.raw.messages.rows.length, 0);
+  assert.equal(r.sources.copy.state, 'CONNECTED');
+  assert.equal(r.raw.messages.rows.length, 2, 'existing tabs still read');
+  assert.deepEqual(r.sources.copy.unsupportedTabs, ['予約']);
+  assert.equal(JSON.stringify(r).includes('LEAK-'), false, 'its contents are never carried');
+  assert.equal(r.sources.copy.copyFindingCount, 0);
 });
 
 // ------------------------------------------------------------------ forbidden fields / groups
